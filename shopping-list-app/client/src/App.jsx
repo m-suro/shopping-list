@@ -4,6 +4,132 @@ import { socket } from './socket';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { useTranslation } from 'react-i18next';
 
+// --- Custom useSwipe Hook (No changes) ---
+const useSwipe = (elementRef, { onSwipeRight, threshold = 50 }) => {
+    const touchStartX = useRef(null);
+    const touchCurrentX = useRef(null);
+    const isSwiping = useRef(false);
+    const touchStartY = useRef(null); // To differentiate scroll vs swipe
+
+    // --- Touch Event Handlers ---
+    const handleTouchStart = useCallback((e) => {
+        if (e.touches.length === 1) { // Only handle single touch swipes
+            touchStartX.current = e.touches[0].clientX;
+            touchCurrentX.current = e.touches[0].clientX;
+            touchStartY.current = e.touches[0].clientY; // Record Y start
+            isSwiping.current = false; // Reset swipe status
+             // Reset visual offset if the hook provides it directly
+             if (elementRef.current) {
+                 elementRef.current.style.transition = 'none'; // Disable transition during swipe
+                 // Ensure progress starts at 0 visually on new touch
+                 elementRef.current.style.setProperty('--swipe-progress', '0');
+             }
+        }
+    }, [elementRef]);
+
+    const handleTouchMove = useCallback((e) => {
+        if (touchStartX.current === null || e.touches.length > 1) {
+            return; // Not started or multi-touch
+        }
+
+        const currentX = e.touches[0].clientX;
+        const currentY = e.touches[0].clientY;
+        const deltaX = currentX - touchStartX.current;
+        const deltaY = currentY - (touchStartY.current ?? currentY); // Use Y start
+
+        touchCurrentX.current = currentX; // Update current position regardless
+
+        // Determine if it's primarily a horizontal swipe early on
+        if (!isSwiping.current && Math.abs(deltaX) > 10) { // Initial horizontal movement threshold
+            // If horizontal movement is significantly greater than vertical, treat as swipe
+            if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5) { // More horizontal than vertical
+                isSwiping.current = true;
+                 // Prevent vertical scroll ONLY when a horizontal swipe is confirmed
+                 // This prevents hijacking scroll immediately on touch
+                 if (e.cancelable) e.preventDefault();
+            } else {
+                // If more vertical, likely a scroll, abort swipe detection for this touch
+                touchStartX.current = null;
+                touchStartY.current = null;
+                return;
+            }
+        }
+
+         // Only apply visual effect and prevent scroll if actively swiping horizontally
+         if (isSwiping.current) {
+             if (e.cancelable) e.preventDefault(); // Continue preventing scroll
+
+             // Apply visual transform (only allow right swipe for now)
+             const offset = Math.max(0, deltaX); // Only positive offset for right swipe
+             if (elementRef.current) {
+                 elementRef.current.style.transform = `translateX(${offset * 0.6}px)`; // Dampen the movement slightly
+                 // Calculate progress, ensure it doesn't exceed 1 easily
+                 const progress = Math.min(1, Math.max(0, offset / (threshold * 1.5)));
+                 elementRef.current.style.setProperty('--swipe-progress', `${progress}`); // CSS variable for icon opacity
+             }
+         }
+
+    }, [elementRef, threshold]); // Include threshold dependency
+
+    const handleTouchEnd = useCallback(() => {
+        if (touchStartX.current === null || touchCurrentX.current === null) {
+            return; // Swipe wasn't started properly or was aborted
+        }
+
+        const deltaX = touchCurrentX.current - touchStartX.current;
+        const isValidSwipe = isSwiping.current && deltaX > threshold;
+
+         // Reset visual state with transition
+         if (elementRef.current) {
+             elementRef.current.style.transition = 'transform 0.2s ease-out'; // Only transition transform back
+             elementRef.current.style.transform = 'translateX(0px)';
+             // Setting progress back to 0 immediately hides the background again.
+              requestAnimationFrame(() => { // Ensure transform reset happens before resetting progress potentially
+                  if (elementRef.current) {
+                      elementRef.current.style.setProperty('--swipe-progress', '0');
+                  }
+              });
+         }
+
+        if (isValidSwipe) {
+            console.log("Swipe right detected");
+            onSwipeRight?.(); // Call the callback if threshold met
+        } else {
+             console.log("Swipe ended, threshold not met or wrong direction", deltaX);
+        }
+
+        // Reset refs after handling
+        touchStartX.current = null;
+        touchCurrentX.current = null;
+        isSwiping.current = false;
+        touchStartY.current = null;
+
+    }, [onSwipeRight, threshold, elementRef]); // Include dependencies
+
+    // --- Effect to Attach/Detach Listeners ---
+    useEffect(() => {
+        const element = elementRef.current;
+        if (!element) return;
+
+        // Add touch event listeners
+        element.addEventListener('touchstart', handleTouchStart, { passive: true }); // passive: true for start to allow default scroll initially
+        element.addEventListener('touchmove', handleTouchMove, { passive: false }); // passive: false for move to allow preventDefault
+        element.addEventListener('touchend', handleTouchEnd, { passive: true });
+        element.addEventListener('touchcancel', handleTouchEnd, { passive: true }); // Handle cancellation same as end
+
+        // Cleanup
+        return () => {
+            element.removeEventListener('touchstart', handleTouchStart);
+            element.removeEventListener('touchmove', handleTouchMove);
+            element.removeEventListener('touchend', handleTouchEnd);
+            element.removeEventListener('touchcancel', handleTouchEnd);
+        };
+    }, [elementRef, handleTouchStart, handleTouchMove, handleTouchEnd]); // Re-attach if handlers change
+
+    // No return value needed unless providing swipe state outward
+};
+
+
 // --- Segmented Control Component (No changes) ---
 function SegmentedControl({ options, currentValue, onChange, ariaLabel }) {
     return (
@@ -116,53 +242,96 @@ function AddItemInlineForm({ listId, onAddItem, onCancel }) {
 }
 
 
-// --- ShoppingListItem (No changes) ---
+// --- ShoppingListItem ---
+// **MODIFIED** Add touch-manipulation to label
 function ShoppingListItem({ item, onToggle, onDelete }) {
     const { t } = useTranslation();
+    const listItemRef = useRef(null); // Ref for the swipe target element
+
+    // Setup swipe handler
+    useSwipe(listItemRef, {
+        onSwipeRight: () => onToggle(item._id), // Trigger toggle on right swipe
+        threshold: 60, // Pixels to swipe before action triggers
+    });
+
     return (
-        <li className={`flex items-center justify-between p-2 my-1 rounded transition-all duration-300 ease-in-out group ${item.completed ? 'bg-green-100 dark:bg-green-900 opacity-70' : 'bg-background dark:bg-dark-background hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-            <label htmlFor={`item-${item._id}`} className="flex items-center gap-3 flex-grow cursor-pointer mr-2 min-w-0"> {/* Added min-w-0 for flex container */}
-                <input
-                    id={`item-${item._id}`}
-                    type="checkbox"
-                    checked={item.completed}
-                    onChange={() => onToggle(item._id)}
-                    className="absolute opacity-0 w-0 h-0 peer" // Peer class for styling based on checkbox state
-                />
-                {/* Custom Checkbox visual */}
-                <span
-                    className={`flex-shrink-0 w-5 h-5 border-2 rounded transition-colors duration-200 ease-in-out flex items-center justify-center
-                             ${item.completed
-                            ? 'bg-primary dark:bg-dark-primary border-primary dark:border-dark-primary'
-                            : 'bg-white dark:bg-gray-700 border-primary/50 dark:border-dark-primary/50 peer-focus:ring-2 peer-focus:ring-offset-1 peer-focus:ring-offset-transparent peer-focus:ring-accent dark:peer-focus:ring-dark-accent'
-                            }`}
-                    aria-hidden="true" // Hide from assistive tech, label covers it
-                >
-                    {/* Checkmark icon */}
-                    {item.completed && (
-                        <svg className="w-3 h-3 text-white dark:text-dark-background" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                    )}
-                </span>
-                 {/* Item Name */}
-                <span className={`flex-grow transition-colors break-words ${item.completed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-text dark:text-dark-text'}`}>
-                    {item.name}
-                </span>
-            </label>
-             {/* Delete Button */}
-            <button
-                onClick={() => onDelete(item._id)}
-                 className="ml-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-lg font-bold flex-shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-150" // Show on hover/focus
-                aria-label={t('delete_item_label', { itemName: item.name })}
+        // Outer li: Provides structure, base background, rounded corners, and overflow clipping
+        <li className="relative my-1 rounded overflow-hidden bg-background dark:bg-dark-background group">
+             {/* Swipe Action Background (Shows check or undo icon) */}
+            <div
+                 // Add opacity-0 initially, let the CSS var override during swipe
+                className={`absolute inset-0 flex items-center justify-start pl-4 transition-opacity duration-100 ease-in opacity-0 ${item.completed ? 'bg-yellow-400/80 dark:bg-yellow-600/80' : 'bg-green-400/80 dark:bg-green-600/80'} opacity-[--swipe-progress]`}
+                aria-hidden="true"
+                style={{'--swipe-progress': 0}} // Ensure CSS var starts at 0
             >
-                <span className="material-symbols-rounded text-xl leading-none align-middle">delete</span>
-            </button>
+                <span className={`material-symbols-rounded text-xl ${item.completed ? 'text-yellow-800 dark:text-yellow-200' : 'text-green-800 dark:text-green-200'}`}>
+                    {item.completed ? 'undo' : 'check_circle'}
+                </span>
+            </div>
+
+            {/* Inner div: Contains the actual content, handles swipe transform, and manages its own completed styling */}
+            <div
+                 ref={listItemRef} // Attach the ref to the div that will be moved
+                 className={
+                     // Increased padding from py-3 to py-4 for more height
+                     `relative flex items-center justify-between py-4 px-2 rounded transition-all duration-300 ease-in-out z-10 group
+                      ${item.completed
+                        // Completed state styling: specific background and opacity
+                        ? 'bg-green-100 dark:bg-green-900 opacity-70'
+                        // Incomplete state styling: default background + hover effect
+                        : 'bg-background dark:bg-dark-background hover:bg-gray-100 dark:hover:bg-gray-800'
+                       }`
+                 }
+                 style={{ '--swipe-progress': 0 }} // Initialize CSS variable for swipe background opacity
+             >
+                {/* Label and Checkbox/Item Name */}
+                {/* **MODIFIED**: Added touch-manipulation class */}
+                <label htmlFor={`item-${item._id}`} className="flex items-center gap-3 flex-grow cursor-pointer mr-2 min-w-0 touch-manipulation">
+                    <input
+                        id={`item-${item._id}`}
+                        type="checkbox"
+                        checked={item.completed}
+                        onChange={() => onToggle(item._id)}
+                        className="absolute opacity-0 w-0 h-0 peer"
+                        aria-hidden="true"
+                    />
+                    {/* Custom Checkbox visual */}
+                    <span
+                        className={`flex-shrink-0 w-5 h-5 border-2 rounded transition-colors duration-200 ease-in-out flex items-center justify-center
+                                 ${item.completed
+                                ? 'bg-primary dark:bg-dark-primary border-primary dark:border-dark-primary' // Checked style
+                                : 'bg-white dark:bg-gray-700 border-primary/50 dark:border-dark-primary/50 peer-focus:ring-2 peer-focus:ring-offset-1 peer-focus:ring-offset-transparent peer-focus:ring-accent dark:peer-focus:ring-dark-accent' // Unchecked style
+                                }`}
+                        aria-hidden="true"
+                    >
+                        {item.completed && (
+                            <svg className="w-3 h-3 text-white dark:text-dark-background" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                        )}
+                    </span>
+                    {/* Item Name */}
+                    <span className={`flex-grow transition-colors break-words ${item.completed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-text dark:text-dark-text'}`}>
+                        {item.name}
+                    </span>
+                </label>
+
+                {/* Delete Button */}
+                <button
+                    onClick={() => onDelete(item._id)}
+                    // Make delete slightly less prominent until hover/focus on touch devices where swipe is primary
+                    className="ml-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-lg font-bold flex-shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 md:opacity-50 md:group-hover:opacity-100 transition-opacity duration-150"
+                    aria-label={t('delete_item_label', { itemName: item.name })}
+                >
+                    <span className="material-symbols-rounded text-xl leading-none align-middle">delete</span>
+                </button>
+            </div>
         </li>
     );
 }
 
-// --- ShoppingListDetail ---
+
+// --- ShoppingListDetail (No changes) ---
 function ShoppingListDetail({ list, items, onBack, onDeleteList }) {
     const { t } = useTranslation();
     const listId = list?._id;
@@ -215,6 +384,8 @@ function ShoppingListDetail({ list, items, onBack, onDeleteList }) {
                  alert(`Error: ${response.error}`); // Basic user feedback
             } else {
                 console.log("Item toggled successfully via socket:", response);
+                 // **Important**: If using swipe, avoid rapid toggles. Consider adding
+                 // a small delay or debounce if issues arise from quick successive toggles.
             }
         });
     }, [listId]);
@@ -384,46 +555,125 @@ function ShoppingListDetail({ list, items, onBack, onDeleteList }) {
 }
 
 
-// --- AddListForm ---
-function AddListForm({ onAddList }) {
+// --- AddListModal Component (NEW) ---
+function AddListModal({ isOpen, onClose, onAddList }) {
     const { t } = useTranslation();
     const [listName, setListName] = useState('');
+    const inputRef = useRef(null);
+
+    // Focus input when modal opens
+    useEffect(() => {
+        if (isOpen) {
+             // Use setTimeout to ensure the input is rendered and focusable after the modal transition (if any)
+             setTimeout(() => {
+                inputRef.current?.focus();
+            }, 50); // Small delay often helps
+        } else {
+             // Reset name when closing
+             setListName('');
+        }
+    }, [isOpen]);
+
+    // Handle Escape key press
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') {
+                onClose();
+            }
+        };
+
+        if (isOpen) {
+            window.addEventListener('keydown', handleKeyDown);
+        }
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isOpen, onClose]);
 
     const handleSubmit = (e) => {
-        e.preventDefault();
+        e.preventDefault(); // Prevent default form submission
         const trimmedName = listName.trim();
-        // Use placeholder directly in onAddList if trimmedName is empty
-        onAddList(trimmedName);
-        setListName(''); // Clear input after submission
+        onAddList(trimmedName); // onAddList from App will handle the empty name case
+        onClose(); // Close modal after submission
     };
 
+    if (!isOpen) {
+        return null; // Don't render anything if not open
+    }
+
     return (
-        <form onSubmit={handleSubmit} className="flex gap-2 mt-6 mb-4 p-4 border-t border-secondary dark:border-dark-secondary">
-            <input
-                type="text"
-                value={listName}
-                onChange={(e) => setListName(e.target.value)}
-                placeholder={t('new_list_placeholder')}
-                className="flex-grow p-2 border rounded bg-white dark:bg-gray-700 text-text dark:text-dark-text border-primary dark:border-dark-primary focus:ring-accent dark:focus:ring-dark-accent h-10" // Consistent height
-                aria-label={t('new_list_placeholder')}
-                 maxLength={100} // Add max length for safety
-            />
-            <button
-                type="submit"
-                className="p-2 bg-accent dark:bg-dark-accent text-white rounded hover:opacity-90 flex-shrink-0 h-10 disabled:opacity-50" // Consistent height & disable styling
-                // Optionally disable if needed, though default name logic handles empty input
-                // disabled={!listName.trim()}
-             >
-                {t('create_list_button')}
-            </button>
-        </form>
+        // Overlay
+        <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-200 ease-in-out"
+            onClick={onClose} // Close on overlay click
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-list-modal-title"
+        >
+            {/* Modal Content Box */}
+            <div
+                className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-sm w-full transform transition-all duration-200 ease-in-out scale-95 opacity-0 animate-modal-enter"
+                onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
+            >
+                {/* Add Tailwind keyframes for modal enter animation if desired */}
+                {/* Example (in your global CSS or index.css):
+                    @keyframes modal-enter {
+                        from { opacity: 0; transform: scale(0.95); }
+                        to { opacity: 1; transform: scale(1); }
+                    }
+                    .animate-modal-enter { animation: modal-enter 0.2s ease-out forwards; }
+                */}
+                <h2 id="add-list-modal-title" className="text-xl font-semibold mb-4 text-primary dark:text-dark-primary">{t('create_list_button')}</h2>
+                <form onSubmit={handleSubmit}>
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        value={listName}
+                        onChange={(e) => setListName(e.target.value)}
+                        placeholder={t('new_list_placeholder')}
+                        className="w-full p-2 border rounded bg-white dark:bg-gray-700 text-text dark:text-dark-text border-primary dark:border-dark-primary focus:ring-accent dark:focus:ring-dark-accent mb-4"
+                        aria-label={t('new_list_placeholder')}
+                        maxLength={100}
+                    />
+                    <div className="flex justify-end gap-3">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-600 text-text dark:text-dark-text hover:opacity-80 transition-opacity"
+                        >
+                             {t('cancel_button', 'Cancel')} {/* Add translation key if needed */}
+                        </button>
+                        <button
+                            type="submit"
+                            className="px-4 py-2 rounded bg-accent dark:bg-dark-accent text-white hover:opacity-90 transition-opacity"
+                        >
+                            {t('create_button', 'Create')} {/* Add translation key if needed */}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     );
 }
 
+
 // --- ShoppingLists ---
-function ShoppingLists({ lists, onSelectList, onAddList }) { // Removed onDeleteList prop as it's not used here
+// **MODIFIED** Removed AddListForm, added button and modal state/trigger
+function ShoppingLists({ lists, onSelectList, onAddList }) {
     const { t } = useTranslation();
-     const [listAnimationParent] = useAutoAnimate(); // Animate the list itself
+    const [listAnimationParent] = useAutoAnimate();
+    const [isAddListModalOpen, setIsAddListModalOpen] = useState(false); // State for modal
+
+    const handleOpenModal = () => setIsAddListModalOpen(true);
+    const handleCloseModal = () => setIsAddListModalOpen(false);
+
+    // Wrap the original onAddList to close the modal
+    const handleAddListAndCloseModal = (name) => {
+         onAddList(name);
+         handleCloseModal();
+    };
+
 
     return (
         <div className="p-4 bg-white dark:bg-gray-800 shadow-md rounded-lg">
@@ -431,7 +681,7 @@ function ShoppingLists({ lists, onSelectList, onAddList }) { // Removed onDelete
             {lists.length === 0 ? (
                 <p className="text-center text-gray-500 dark:text-gray-400">{t('no_lists_message')}</p>
             ) : (
-                <ul ref={listAnimationParent} className="space-y-2 list-none p-0">
+                <ul ref={listAnimationParent} className="space-y-2 list-none p-0 mb-6"> {/* Add margin-bottom */}
                     {lists.map(list => (
                         <li key={list._id}
                             className="flex justify-between items-center p-3 bg-secondary/30 dark:bg-dark-secondary/30 rounded cursor-pointer hover:bg-secondary/50 dark:hover:bg-dark-secondary/50 transition-colors"
@@ -447,12 +697,29 @@ function ShoppingLists({ lists, onSelectList, onAddList }) { // Removed onDelete
                     ))}
                 </ul>
             )}
-            <AddListForm onAddList={onAddList} />
+             {/* **MODIFIED**: Replaced AddListForm with a button */}
+             <div className="mt-6 pt-4 border-t border-secondary dark:border-dark-secondary flex justify-center">
+                 <button
+                     type="button"
+                     onClick={handleOpenModal}
+                     className="w-full sm:w-auto px-5 py-2 bg-accent dark:bg-dark-accent text-white rounded hover:opacity-90 flex items-center justify-center gap-2 transition-opacity"
+                 >
+                     <span className="material-symbols-rounded">add</span>
+                     {t('create_list_button')}
+                 </button>
+             </div>
+
+             {/* Render the modal */}
+             <AddListModal
+                isOpen={isAddListModalOpen}
+                onClose={handleCloseModal}
+                onAddList={handleAddListAndCloseModal}
+             />
         </div>
     )
 }
 
-// --- Main App Component ---
+// --- Main App Component (No changes) ---
 function App() {
     const { t, i18n } = useTranslation();
     const [isConnected, setIsConnected] = useState(socket.connected);
@@ -726,8 +993,9 @@ function App() {
         setError(null); // Clear list-specific errors when going back
     };
 
+    // **MODIFIED** onAddList now handles empty name case using translation
     const handleAddList = (listName) => {
-         const nameToSend = listName || t('new_list_placeholder'); // Use placeholder if empty, consistent with AddListForm
+         const nameToSend = listName || t('new_list_placeholder'); // Use placeholder from translation if empty
         console.log("Emitting addList:", nameToSend);
         socket.emit('addList', nameToSend, (response) => {
             if (response?.error) {
@@ -811,8 +1079,7 @@ function App() {
                     <ShoppingLists
                         lists={lists}
                         onSelectList={handleSelectList}
-                        onAddList={handleAddList}
-                        // onDeleteList is handled in ShoppingListDetail now
+                        onAddList={handleAddList} // Pass down the App's handleAddList
                     />
                 )}
             </main>
