@@ -23,5 +23,7 @@
   "close_search": "Zamknij wyszukiwanie",
   "open_add_item": "Otwórz formularz dodawania",
   "close_add_item": "Zamknij formularz dodawania",
-  "no_search_results": "Brak elementów pasujących do wyszukiwania."
+  "no_search_results": "Brak elementów pasujących do wyszukiwania.",
+  "cancel_button": "Anuluj",
+  "create_button": "Utwórz"
 }

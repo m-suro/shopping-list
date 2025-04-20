@@ -23,5 +23,7 @@
   "close_search": "Close search bar",
   "open_add_item": "Open add item form",
   "close_add_item": "Close add item form",
-  "no_search_results": "No items match your search."
+  "no_search_results": "No items match your search.",
+  "cancel_button": "Cancel",
+  "create_button": "Create"
 }
