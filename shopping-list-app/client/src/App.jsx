@@ -3,6 +3,9 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { socket } from './socket';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { useTranslation } from 'react-i18next';
+// --- NEW: Import Admin Components ---
+import AdminPinModal from './AdminPinModal'; // Assuming it's in the same directory or adjust path
+import AdminPanel from './AdminPanel';
 
 // --- Custom useSwipe Hook ---
 const useSwipe = (elementRef, { onSwipeRight, threshold = 50 }) => {
@@ -125,12 +128,10 @@ const useSwipe = (elementRef, { onSwipeRight, threshold = 50 }) => {
             element.removeEventListener('touchcancel', handleTouchEnd);
         };
     }, [elementRef, handleTouchStart, handleTouchMove, handleTouchEnd]); // Re-attach if handlers change
-
-    // No return value needed unless providing swipe state outward
 };
 
 
-// --- Segmented Control Component (No changes) ---
+// --- Segmented Control Component ---
 function SegmentedControl({ options, currentValue, onChange, ariaLabel }) {
     return (
         <div className="inline-flex rounded-lg shadow-sm bg-gray-200 dark:bg-gray-700 p-0.5" role="group" aria-label={ariaLabel}>
@@ -151,7 +152,7 @@ function SegmentedControl({ options, currentValue, onChange, ariaLabel }) {
     );
 }
 
-// --- ThemeToggle using Material Symbols Rounded (No changes) ---
+// --- ThemeToggle using Material Symbols Rounded ---
 function ThemeToggle({ isDarkMode, onToggle }) {
     const { t } = useTranslation();
     const themeOptions = [
@@ -168,7 +169,7 @@ function ThemeToggle({ isDarkMode, onToggle }) {
     );
 }
 
-// --- LanguageToggle using Image Flags (No changes) ---
+// --- LanguageToggle using Image Flags ---
 function LanguageToggle({ currentLang, onChangeLang }) {
     const { t } = useTranslation();
     const languageOptions = [
@@ -185,7 +186,7 @@ function LanguageToggle({ currentLang, onChangeLang }) {
     );
 }
 
-// --- AddItemInlineForm (No changes) ---
+// --- AddItemInlineForm ---
 function AddItemInlineForm({ listId, onAddItem, onCancel }) {
     const { t } = useTranslation();
     const [itemName, setItemName] = useState('');
@@ -327,7 +328,7 @@ function ShoppingListItem({ item, onToggle, onDelete }) {
 }
 
 
-// --- ShoppingListDetail (No changes needed for auth phase 1) ---
+// --- ShoppingListDetail ---
 function ShoppingListDetail({ list, items, onBack, onDeleteList }) {
     const { t } = useTranslation();
     const listId = list?._id;
@@ -471,8 +472,8 @@ function AddListModal({ isOpen, onClose, onAddList }) {
                 <form onSubmit={handleSubmit}>
                     <input ref={inputRef} type="text" value={listName} onChange={(e) => setListName(e.target.value)} placeholder={t('new_list_placeholder')} className="w-full p-2 border rounded bg-white dark:bg-gray-700 text-text dark:text-dark-text border-primary dark:border-dark-primary focus:ring-accent dark:focus:ring-dark-accent mb-4" aria-label={t('new_list_placeholder')} maxLength={100} />
                     <div className="flex justify-end gap-3">
-                        <button type="button" onClick={onClose} className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-600 text-text dark:text-dark-text hover:opacity-80 transition-opacity"> {t('cancel_button', 'Cancel')} </button>
-                        <button type="submit" className="px-4 py-2 rounded bg-accent dark:bg-dark-accent text-white hover:opacity-90 transition-opacity"> {t('create_button', 'Create')} </button>
+                        <button type="button" onClick={onClose} className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-600 text-text dark:text-dark-text hover:opacity-80 transition-opacity"> {t('cancel_button')} </button>
+                        <button type="submit" className="px-4 py-2 rounded bg-accent dark:bg-dark-accent text-white hover:opacity-90 transition-opacity"> {t('create_button')} </button>
                     </div>
                 </form>
             </div>
@@ -521,7 +522,7 @@ function ShoppingLists({ lists, onSelectList, onAddList }) {
     );
 }
 
-// --- NEW: Login Component ---
+// --- Login Component ---
 function Login({ onLogin, error, setError }) {
     const { t } = useTranslation();
     const [username, setUsername] = useState('');
@@ -533,7 +534,7 @@ function Login({ onLogin, error, setError }) {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!username || !pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
-             setError(t('login_invalid_input', 'Please enter username and a 4-digit PIN.'));
+             setError(t('login_invalid_input')); // Use key only
              return;
         }
         setIsLoading(true);
@@ -558,7 +559,7 @@ function Login({ onLogin, error, setError }) {
 
         } catch (err) {
             console.error("Login failed:", err);
-            setError(err.message || t('login_failed_generic', 'Login failed. Please try again.'));
+            setError(err.message || t('login_failed_generic')); // Use key only
         } finally {
             setIsLoading(false);
         }
@@ -568,7 +569,7 @@ function Login({ onLogin, error, setError }) {
         <div className="flex flex-col items-center justify-center min-h-screen bg-background dark:bg-dark-background p-4">
             <div className="w-full max-w-xs p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
                 <h1 className="text-2xl font-bold mb-6 text-center text-primary dark:text-dark-primary">
-                    {t('login_title', 'Login')}
+                    {t('login_title')}
                 </h1>
                 {error && (
                     <p className="mb-4 text-center text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/50 p-2 rounded text-sm">
@@ -578,7 +579,7 @@ function Login({ onLogin, error, setError }) {
                 <form onSubmit={handleSubmit}>
                     <div className="mb-4">
                         <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            {t('username_label', 'Username')}
+                            {t('username_label')}
                         </label>
                         <input
                             type="text"
@@ -592,7 +593,7 @@ function Login({ onLogin, error, setError }) {
                     </div>
                     <div className="mb-6">
                         <label htmlFor="pin" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            {t('pin_label', '4-Digit PIN')}
+                            {t('pin_label')}
                         </label>
                         <input
                             type="password" // Use password type for masking
@@ -615,7 +616,7 @@ function Login({ onLogin, error, setError }) {
                         {isLoading ? (
                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                         ) : (
-                            t('login_button', 'Log In')
+                            t('login_button')
                         )}
                     </button>
                 </form>
@@ -626,7 +627,7 @@ function Login({ onLogin, error, setError }) {
 
 
 // --- Main App Component ---
-// Includes Auth State, Session Check, Conditional Rendering
+// Includes Admin Panel State & Logic
 function App() {
     const { t, i18n } = useTranslation();
     const [isConnected, setIsConnected] = useState(socket.connected);
@@ -642,25 +643,32 @@ function App() {
     const [isAuthLoading, setIsAuthLoading] = useState(true);
     const [authError, setAuthError] = useState(null);
 
+    // --- View/Data State ---
     const [lists, setLists] = useState([]);
     const [currentListId, setCurrentListId] = useState(null);
     const [currentListItems, setCurrentListItems] = useState([]);
-    const [isLoading, setIsLoading] = useState(false); // General loading for list/item data
+    const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null); // General errors
+
+    // --- NEW: Admin State ---
+    const [currentView, setCurrentView] = useState('login'); // 'login', 'lists', 'admin'
+    const [isAdminPinModalOpen, setIsAdminPinModalOpen] = useState(false);
+    const [isAdminVerified, setIsAdminVerified] = useState(false); // Tracks if Admin PIN was entered correctly
+    const [adminPinError, setAdminPinError] = useState(null);
 
     const currentListIdRef = useRef(currentListId);
     useEffect(() => { currentListIdRef.current = currentListId; }, [currentListId]);
 
     const API_URL = import.meta.env.VITE_SERVER_URL;
 
-    // --- Theme Handling (unchanged) ---
+    // --- Theme Handling ---
     useEffect(() => {
         if (isDarkMode) { document.documentElement.classList.add('dark'); localStorage.setItem('theme', 'dark'); }
         else { document.documentElement.classList.remove('dark'); localStorage.setItem('theme', 'light'); }
     }, [isDarkMode]);
     const toggleTheme = (isNowDark) => setIsDarkMode(isNowDark);
 
-    // --- Language Handling (unchanged) ---
+    // --- Language Handling ---
     const changeLanguage = (lng) => i18n.changeLanguage(lng);
     useEffect(() => {
         const handleLanguageChange = (lng) => setCurrentLanguage(lng.split('-')[0]);
@@ -673,12 +681,17 @@ function App() {
     // --- Logout Handler ---
     const handleLogout = useCallback(async (logoutMessage = null) => {
         console.log("Handling logout...");
-        setError(null); // Clear general errors
-        setAuthError(logoutMessage); // Set specific logout message if provided
-        setCurrentUser(null); // Clear user state *first*
+        setError(null);
+        setAuthError(logoutMessage);
+        setCurrentUser(null);
         setLists([]);
         setCurrentListId(null);
         setCurrentListItems([]);
+        // --- Reset Admin State on Logout ---
+        setIsAdminVerified(false);
+        setIsAdminPinModalOpen(false);
+        setAdminPinError(null);
+        setCurrentView('login'); // Go back to login view
 
         if (socket.connected) {
             console.log("Disconnecting socket on logout.");
@@ -693,7 +706,7 @@ function App() {
                 console.error("Error requesting server logout:", err);
             }
         }
-    }, [API_URL]); // Depend only on API_URL
+    }, [API_URL]); // Only depends on API_URL
 
 
      // --- Check Session on Load ---
@@ -702,21 +715,17 @@ function App() {
              console.log("Checking user session...");
              setIsAuthLoading(true);
              setAuthError(null);
-             if (!API_URL) {
-                 setAuthError("Configuration Error: Server URL missing.");
-                 setIsAuthLoading(false);
-                 return;
-             }
+             if (!API_URL) { setAuthError("Config Error: Server URL missing."); setIsAuthLoading(false); return; }
              try {
                 const response = await fetch(`${API_URL}/api/auth/session`, { credentials: 'include' });
                 if (response.status === 401) {
                     console.log("No valid session found.");
-                    setCurrentUser(null);
-                     if(socket.connected) socket.disconnect(); // Disconnect if session invalid
+                    setCurrentUser(null); setCurrentView('login');
+                    if(socket.connected) socket.disconnect();
                 } else if (response.ok) {
                     const userData = await response.json();
                     console.log("Session valid, user:", userData.username);
-                    setCurrentUser(userData); // Set user state *before* connecting socket
+                    setCurrentUser(userData); setCurrentView('lists'); // Default to lists view after login
                 } else {
                      const errorData = await response.json().catch(() => ({ message: response.statusText }));
                      throw new Error(errorData.message || `HTTP error ${response.status}`);
@@ -724,7 +733,7 @@ function App() {
             } catch (err) {
                 console.error("Session check failed:", err);
                 setAuthError(`Session check failed: ${err.message}`);
-                setCurrentUser(null);
+                setCurrentUser(null); setCurrentView('login');
                  if (socket.connected) socket.disconnect();
             } finally {
                 setIsAuthLoading(false);
@@ -732,7 +741,7 @@ function App() {
         };
         checkUserSession();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [API_URL]); // Depend only on API_URL
+    }, [API_URL]); // Only depends on API_URL
 
     // --- Fetch Lists (Depends on currentUser) ---
     const fetchLists = useCallback(async () => {
@@ -743,7 +752,7 @@ function App() {
             const response = await fetch(`${API_URL}/api/lists`, { credentials: 'include' });
             if (!response.ok) {
                  const errorData = await response.json().catch(() => ({ message: response.statusText }));
-                 if (response.status === 401) { handleLogout(t('session_expired_error', 'Session expired, please log in again.')); }
+                 if (response.status === 401) { handleLogout(t('session_expired_error')); } // Use translated key
                  throw new Error(errorData.message || `HTTP ${response.status}: Failed to fetch lists`);
             }
             setLists(await response.json());
@@ -752,7 +761,7 @@ function App() {
         } finally {
             if (!currentListIdRef.current) setIsLoading(false);
         }
-    }, [API_URL, currentUser, t, handleLogout]); // Add handleLogout
+    }, [API_URL, currentUser, t, handleLogout]); // Added handleLogout dependency
 
     // --- Fetch Items (Depends on currentUser) ---
     const fetchItemsForList = useCallback(async (listId) => {
@@ -763,83 +772,104 @@ function App() {
             const response = await fetch(`${API_URL}/api/lists/${listId}/items`, { credentials: 'include' });
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ message: response.statusText }));
-                if (response.status === 401) { handleLogout(t('session_expired_error', 'Session expired, please log in again.')); }
-                if (response.status === 404 || response.status === 403) { throw new Error(errorData.message || t('list_access_denied', 'List not found or access denied.')); }
+                if (response.status === 401) { handleLogout(t('session_expired_error')); }
+                if (response.status === 404 || response.status === 403) { throw new Error(errorData.message || t('list_access_denied')); }
                 throw new Error(errorData.message || `HTTP ${response.status}: Failed to fetch items`);
             }
             setCurrentListItems(await response.json());
         } catch (error) {
-            console.error(`Failed to fetch items for list ${listId}:`, error); setError(`Failed to load items for this list: ${error.message}`); setCurrentListItems([]);
+            console.error(`Failed to fetch items for list ${listId}:`, error); setError(`Failed to load items: ${error.message}`); setCurrentListItems([]);
         } finally {
             setIsLoading(false);
         }
-    }, [API_URL, currentUser, t, handleLogout]); // Add handleLogout
+    }, [API_URL, currentUser, t, handleLogout]); // Added handleLogout dependency
 
     // --- Socket Connection & Event Listeners (Depends on currentUser) ---
     useEffect(() => {
-        if (!currentUser || !API_URL) {
-             if (socket.connected) { console.log("Disconnecting socket (no user/URL)."); socket.disconnect(); }
-             return;
-        }
+        if (!currentUser || !API_URL) { if (socket.connected) { console.log("Disconnecting socket (no user/URL)."); socket.disconnect(); } return; }
 
         console.log("Setting up socket listeners for:", currentUser.username);
 
-        // --- Socket Listeners ---
         function onConnect() { console.log('Socket connected'); setIsConnected(true); setError(null); fetchLists(); if (currentListIdRef.current) { socket.emit('joinList', currentListIdRef.current); } }
-        function onDisconnect(reason) { console.warn(`Socket disconnected! Reason: ${reason}`); setIsConnected(false); if (reason === 'io server disconnect') { handleLogout(t('session_expired_error', 'Session expired, please log in again.')); } else if (reason !== 'io client disconnect') { setError(t('connection_lost_error', 'Connection lost...')); } }
-        function onConnectError(err) { console.error("Socket connection error:", err.message); if (err.message.includes('Authentication error')) { handleLogout(t('authentication_error', 'Authentication failed.')); } else { setError(t('connection_failed_error', `Connect failed: ${err.message}`)); } setIsConnected(false); }
-        function onListsUpdated() { console.log("Lists updated event received"); fetchLists(); }
-        function onListDeleted(deletedListId) { console.log("List deleted event received:", deletedListId); setLists(prev => prev.filter(l => l._id !== deletedListId)); if (currentListIdRef.current === deletedListId) { setCurrentListId(null); setCurrentListItems([]); } }
-        function onItemAdded(newItem) { console.log("Item added event:", newItem); if (newItem.listId === currentListIdRef.current) { setCurrentListItems(prev => prev.some(i => i._id === newItem._id) ? prev : [...prev, newItem]); } }
-        function onItemUpdated(updatedItem) { console.log("Item updated event:", updatedItem); if (updatedItem.listId === currentListIdRef.current) { setCurrentListItems(prev => prev.map(i => i._id === updatedItem._id ? updatedItem : i)); } }
-        function onItemDeleted(deletedItemId) { console.log("Item deleted event:", deletedItemId); setCurrentListItems(prev => prev.filter(i => i._id !== deletedItemId)); }
+        function onDisconnect(reason) { console.warn(`Socket disconnected! Reason: ${reason}`); setIsConnected(false); if (reason === 'io server disconnect') { handleLogout(t('session_expired_error')); } else if (reason !== 'io client disconnect') { setError(t('connection_lost_error')); } }
+        function onConnectError(err) { console.error("Socket conn error:", err.message); if (err.message.includes('Authentication error')) { handleLogout(t('authentication_error')); } else { setError(t('connection_failed_error', { message: err.message })); } setIsConnected(false); }
+        function onListsUpdated() { console.log("Lists updated event"); fetchLists(); }
+        function onListDeleted(id) { console.log("List deleted event", id); setLists(p => p.filter(l => l._id !== id)); if (currentListIdRef.current === id) { setCurrentListId(null); setCurrentListItems([]); } }
+        function onItemAdded(item) { if (item.listId === currentListIdRef.current) setCurrentListItems(p => p.some(i => i._id === item._id) ? p : [...p, item]); }
+        function onItemUpdated(item) { if (item.listId === currentListIdRef.current) setCurrentListItems(p => p.map(i => i._id === item._id ? item : i)); }
+        function onItemDeleted(id) { setCurrentListItems(p => p.filter(i => i._id !== id)); }
 
-        socket.on('connect', onConnect);
-        socket.on('disconnect', onDisconnect);
-        socket.on('connect_error', onConnectError);
-        socket.on('listsUpdated', onListsUpdated);
-        socket.on('listDeleted', onListDeleted);
-        socket.on('itemAdded', onItemAdded);
-        socket.on('itemUpdated', onItemUpdated);
-        socket.on('itemDeleted', onItemDeleted);
+        socket.on('connect', onConnect); socket.on('disconnect', onDisconnect); socket.on('connect_error', onConnectError);
+        socket.on('listsUpdated', onListsUpdated); socket.on('listDeleted', onListDeleted);
+        socket.on('itemAdded', onItemAdded); socket.on('itemUpdated', onItemUpdated); socket.on('itemDeleted', onItemDeleted);
 
-        // Connect socket only if user is set and not already connected
-        if (!socket.connected) {
-             console.log("Connecting socket...");
-             // Socket middleware will use cookie for auth
-             socket.connect();
-        }
+        if (!socket.connected) { console.log("Connecting socket..."); socket.connect(); }
+        return () => { console.log("Cleaning up socket listeners"); socket.off('connect'); socket.off('disconnect'); socket.off('connect_error'); socket.off('listsUpdated'); socket.off('listDeleted'); socket.off('itemAdded'); socket.off('itemUpdated'); socket.off('itemDeleted'); };
+    }, [currentUser, API_URL, fetchLists, t, handleLogout]); // Include handleLogout dependency
 
-        return () => { // Cleanup
-            console.log("Cleaning up socket listeners for:", currentUser?.username);
-            socket.off('connect', onConnect);
-            socket.off('disconnect', onDisconnect);
-            socket.off('connect_error', onConnectError);
-            socket.off('listsUpdated', onListsUpdated);
-            socket.off('listDeleted', onListDeleted);
-            socket.off('itemAdded', onItemAdded);
-            socket.off('itemUpdated', onItemUpdated);
-            socket.off('itemDeleted', onItemDeleted);
-            // Do not disconnect here unless the App component itself unmounts
-        };
-    }, [currentUser, API_URL, fetchLists, fetchItemsForList, t, handleLogout]); // Include handleLogout
 
     // --- Login Handler ---
     const handleLogin = (userData) => {
         console.log("Handling login, setting user:", userData.username);
         setCurrentUser(userData);
+        setCurrentView('lists'); // Switch view after login
         setAuthError(null);
-        // Socket connection & data fetch triggered by useEffect watching currentUser
     };
 
-    // --- List/Item Actions (Rely on backend auth checks) ---
+    // --- List/Item Actions (No change needed, backend handles auth) ---
     const handleSelectList = (listId) => { if (!currentUser || currentListId === listId) return; if (currentListIdRef.current) socket.emit('leaveList', currentListIdRef.current); setCurrentListId(listId); setCurrentListItems([]); fetchItemsForList(listId); socket.emit('joinList', listId); };
     const handleBackToLists = () => { if (!currentUser) return; if (currentListIdRef.current) socket.emit('leaveList', currentListIdRef.current); setCurrentListId(null); setCurrentListItems([]); setError(null); };
     const handleAddList = (listName) => { if (!currentUser) return; const nameToSend = listName || t('new_list_placeholder'); socket.emit('addList', nameToSend, (res) => { if (res?.error) setError(res.error); else setError(null); }); };
     const handleDeleteList = (listId) => { if (!currentUser) return; socket.emit('deleteList', listId, (res) => { if (res?.error) setError(res.error); else setError(null); }); };
 
+    // --- NEW: Admin Actions ---
+    const handleOpenAdminPinModal = () => {
+        setAdminPinError(null); // Clear previous errors
+        setIsAdminPinModalOpen(true);
+    };
+
+    const handleVerifyAdminPin = async (pin) => {
+        if (!API_URL) {
+            setAdminPinError("Config Error: Server URL missing.");
+            return;
+        }
+        setAdminPinError(null); // Clear previous errors
+        try {
+            const response = await fetch(`${API_URL}/api/admin/verify-pin`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pin }),
+                credentials: 'include' // Send auth cookie to verify user is admin
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                 if (response.status === 401) {
+                     throw new Error(t('admin_pin_invalid')); // Use key only
+                 } else {
+                     throw new Error(data.message || `HTTP Error ${response.status}`);
+                 }
+            }
+            // PIN Verified!
+            console.log("Admin PIN Verified");
+            setIsAdminVerified(true);
+            setIsAdminPinModalOpen(false);
+            setCurrentView('admin'); // Switch to admin view
+        } catch (err) {
+            console.error("Admin PIN verification failed:", err);
+            setAdminPinError(err.message || t('admin_pin_error')); // Use key only
+            setIsAdminVerified(false); // Ensure not verified on error
+        }
+    };
+
+    const handleExitAdminMode = () => {
+        console.log("Exiting admin mode.");
+        setIsAdminVerified(false); // De-verify on exit for security
+        setCurrentView('lists'); // Go back to list view
+    };
+
+
     // --- Render Logic ---
-    const currentList = currentUser && !isLoading && lists.find(list => list._id === currentListId);
+    const currentList = currentUser && !isLoading && currentView === 'lists' && lists.find(list => list._id === currentListId);
 
     if (isAuthLoading) {
         return ( <div className="flex justify-center items-center min-h-screen bg-background dark:bg-dark-background"> <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary dark:border-dark-primary"></div> </div> );
@@ -847,12 +877,24 @@ function App() {
 
     return (
         <div className="min-h-screen bg-background dark:bg-dark-background text-text dark:text-dark-text transition-colors duration-300 font-sans">
-            {!currentUser ? (
+            {currentView === 'login' ? (
                 <Login onLogin={handleLogin} error={authError} setError={setAuthError} />
             ) : (
+                // Logged-in Views (Lists or Admin)
                 <>
+                    {/* Header Area: Toggles, Logout, Admin Button */}
                     <div className="absolute top-4 right-4 flex items-center gap-3 z-10">
-                         <button onClick={() => handleLogout()} title={t('logout_button_title', 'Log out')} className="p-1.5 text-sm font-medium rounded-md transition-colors duration-200 ease-in-out text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary dark:focus:ring-dark-primary focus:ring-offset-background dark:focus:ring-offset-dark-background">
+                         {/* Admin Button (only if user is admin) */}
+                         {currentUser?.isAdmin && currentView !== 'admin' && (
+                             <button
+                                 onClick={handleOpenAdminPinModal}
+                                 title={t('admin_button_title')}
+                                 className="p-1.5 text-sm font-medium rounded-md transition-colors duration-200 ease-in-out text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary dark:focus:ring-dark-primary focus:ring-offset-background dark:focus:ring-offset-dark-background"
+                             >
+                                  <span className="material-symbols-rounded text-lg leading-none">admin_panel_settings</span>
+                             </button>
+                         )}
+                        <button onClick={() => handleLogout()} title={t('logout_button_title')} className="p-1.5 text-sm font-medium rounded-md transition-colors duration-200 ease-in-out text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary dark:focus:ring-dark-primary focus:ring-offset-background dark:focus:ring-offset-dark-background">
                              <span className="material-symbols-rounded text-lg leading-none">logout</span>
                          </button>
                         <LanguageToggle currentLang={currentLanguage} onChangeLang={changeLanguage} />
@@ -860,29 +902,50 @@ function App() {
                     </div>
 
                     <main className="max-w-2xl mx-auto p-4 pt-20">
+                         {/* Status/Error Area */}
                         <div className="text-center mb-4 text-xs min-h-[1.2em]">
                             {error ? ( <span className="text-red-600 dark:text-red-400 font-semibold">{error}</span> )
-                             : authError ? ( <span className="text-red-600 dark:text-red-400 font-semibold">{authError}</span>) // Show auth error here too
+                             : authError && currentView !== 'login' ? ( <span className="text-red-600 dark:text-red-400 font-semibold">{authError}</span>)
                              : ( <span className={`transition-opacity duration-300 ${isConnected ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400 animate-pulse'}`}> {isConnected ? t('status_connected') : t('status_disconnected')} </span> )
                             }
                         </div>
 
+                         {/* Logged in User Info */}
                          <div className="text-center mb-4 text-sm text-gray-500 dark:text-gray-400">
                              Logged in as: <span className="font-medium text-primary dark:text-dark-primary">{currentUser.username}</span>
                          </div>
 
-                        {isLoading && !currentListId ? (
-                            <div className="flex justify-center items-center p-10"> <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary dark:border-dark-primary"></div> <span className="ml-3 text-gray-500 dark:text-gray-400">{t('loading')}</span> </div>
-                        ) : currentListId && currentList ? (
-                            <ShoppingListDetail list={currentList} items={currentListItems} onBack={handleBackToLists} onDeleteList={handleDeleteList} />
+                        {/* Main Content Area based on currentView */}
+                         {currentView === 'admin' ? (
+                             <AdminPanel onExitAdminMode={handleExitAdminMode} />
                          ) : (
-                            <ShoppingLists lists={lists} onSelectList={handleSelectList} onAddList={handleAddList} />
-                        )}
+                             // --- Regular Lists View ---
+                             <>
+                                {isLoading && !currentListId ? (
+                                    <div className="flex justify-center items-center p-10"> <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary dark:border-dark-primary"></div> <span className="ml-3 text-gray-500 dark:text-gray-400">{t('loading')}</span> </div>
+                                ) : currentListId && currentList ? (
+                                    <ShoppingListDetail list={currentList} items={currentListItems} onBack={handleBackToLists} onDeleteList={handleDeleteList} />
+                                ) : (
+                                    <ShoppingLists lists={lists} onSelectList={handleSelectList} onAddList={handleAddList} />
+                                )}
+                             </>
+                         )}
                     </main>
+
+                    {/* Admin PIN Modal (rendered conditionally but outside main flow) */}
+                    <AdminPinModal
+                        isOpen={isAdminPinModalOpen}
+                        onClose={() => setIsAdminPinModalOpen(false)}
+                        onVerify={handleVerifyAdminPin}
+                        error={adminPinError}
+                        setError={setAdminPinError} // Pass down setError
+                    />
                 </>
             )}
         </div>
     );
 }
+
+
 
 export default App;
