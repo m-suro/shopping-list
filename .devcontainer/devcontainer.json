@@ -1,0 +1,14 @@
+{
+  "customizations": {
+    "codespaces": {
+      "repositories": {
+        "m-suro/shopping-list": {
+          "permissions": {
+            "contents": "read",
+            "packages": "read"
+          }
+        }
+      }
+    }
+  }
+}
