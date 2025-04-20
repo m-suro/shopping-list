@@ -10,8 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@formkit/auto-animate": "^0.8.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-transition-group": "^4.4.5",
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
