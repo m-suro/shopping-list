@@ -17,14 +17,11 @@ if (!MONGODB_URI) {
 // Get username and pin from command line arguments
 const usernameArg = process.argv[2];
 const pinArg = process.argv[3];
-// NEW: Check for the optional --admin flag
-const isAdminFlag = process.argv[4] === '--admin';
 
 // Basic argument validation
 if (!usernameArg || !pinArg) {
-    console.error('\x1b[31m%s\x1b[0m', 'Error: Missing required arguments.');
-    // Updated Usage Instructions
-    console.log('Usage: node scripts/createUser.js <username> <4-digit-pin> [--admin]');
+    console.error('\x1b[31m%s\x1b[0m', 'Error: Missing arguments.');
+    console.log('Usage: node scripts/createUser.js <username> <4-digit-pin>');
     process.exit(1);
 }
 
@@ -73,37 +70,24 @@ async function createUser() {
         }
 
 
-        // 3. Create the new user object
-        const newUserObject = {
+        // 3. Create and save the new user
+        console.log(`Creating user "${lowerCaseUsername}"...`);
+        const newUser = new User({
             username: lowerCaseUsername,
             hashedPin: hashedPin,
-            // NEW: Conditionally set isAdmin based on the flag
-            isAdmin: isAdminFlag
-        };
+            // You could add an optional 4th argument to set isAdmin: true if needed
+            // isAdmin: process.argv[4] === '--admin'
+        });
 
-        console.log(`Creating user "${lowerCaseUsername}" ${isAdminFlag ? 'as an ADMIN' : ''}...`);
-        const newUser = new User(newUserObject);
-
-        // 4. Save the new user
         await newUser.save();
-        console.log(
-            '\x1b[32m%s\x1b[0m', // Green color
-            `User "${newUser.username}" created successfully! (ID: ${newUser._id})${newUser.isAdmin ? ' [ADMIN]' : ''}`
-        );
+        console.log('\x1b[32m%s\x1b[0m', `User "${newUser.username}" created successfully! (ID: ${newUser._id})`); // Green color
 
     } catch (error) {
         console.error('\x1b[31m%s\x1b[0m', 'Error during user creation process:'); // Red color
-        // Handle potential validation errors from Mongoose save()
-        if (error.name === 'ValidationError') {
-            for (const field in error.errors) {
-                console.error(`  - ${error.errors[field].message}`);
-            }
-        } else {
-            console.error(error);
-        }
+        console.error(error);
         process.exitCode = 1; // Indicate failure
     } finally {
-        // 5. Disconnect from MongoDB
+        // 4. Disconnect from MongoDB
         if (connection) {
             console.log('\x1b[34m%s\x1b[0m', 'Disconnecting from MongoDB...'); // Blue color
             await mongoose.disconnect();

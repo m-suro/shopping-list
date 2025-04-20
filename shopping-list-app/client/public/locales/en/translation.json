@@ -37,13 +37,5 @@
   "authentication_error": "Authentication failed. Please log in again.",
   "connection_lost_error": "Connection lost. Attempting to reconnect...",
   "connection_failed_error": "Failed to connect: {{message}}. Retrying...",
-  "list_access_denied": "List not found or access denied.",
-  "admin_button_title": "Admin Panel",
-  "admin_pin_modal_title": "Admin Access",
-  "admin_pin_label": "Enter Admin PIN",
-  "admin_pin_verify_button": "Verify",
-  "admin_pin_invalid": "Invalid Admin PIN.",
-  "admin_pin_error": "Error verifying Admin PIN. Please try again.",
-  "admin_panel_title": "Admin Panel",
-  "back_to_app": "Back to App"
+  "list_access_denied": "List not found or access denied."
 }

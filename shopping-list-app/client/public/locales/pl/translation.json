@@ -37,13 +37,5 @@
   "authentication_error": "Uwierzytelnianie nie powiodło się. Zaloguj się ponownie.",
   "connection_lost_error": "Utracono połączenie. Próba ponownego połączenia...",
   "connection_failed_error": "Nie udało się połączyć: {{message}}. Ponawianie próby...",
-  "list_access_denied": "Nie znaleziono listy lub odmowa dostępu.",
-  "admin_button_title": "Panel Admina",
-  "admin_pin_modal_title": "Dostęp Administratora",
-  "admin_pin_label": "Wprowadź PIN Administratora",
-  "admin_pin_verify_button": "Zweryfikuj",
-  "admin_pin_invalid": "Nieprawidłowy PIN Administratora.",
-  "admin_pin_error": "Błąd weryfikacji PINu Administratora. Spróbuj ponownie.",
-  "admin_panel_title": "Panel Administratora",
-  "back_to_app": "Wróć do Aplikacji"
+  "list_access_denied": "Nie znaleziono listy lub odmowa dostępu."
 }
