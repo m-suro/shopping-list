@@ -25,5 +25,17 @@
   "close_add_item": "Zamknij formularz dodawania",
   "no_search_results": "Brak elementów pasujących do wyszukiwania.",
   "cancel_button": "Anuluj",
-  "create_button": "Utwórz"
+  "create_button": "Utwórz",
+  "login_title": "Logowanie",
+  "username_label": "Nazwa użytkownika",
+  "pin_label": "4-cyfrowy PIN",
+  "login_button": "Zaloguj się",
+  "login_invalid_input": "Proszę podać nazwę użytkownika i 4-cyfrowy PIN.",
+  "login_failed_generic": "Logowanie nie powiodło się. Spróbuj ponownie.",
+  "logout_button_title": "Wyloguj się",
+  "session_expired_error": "Sesja wygasła, zaloguj się ponownie.",
+  "authentication_error": "Uwierzytelnianie nie powiodło się. Zaloguj się ponownie.",
+  "connection_lost_error": "Utracono połączenie. Próba ponownego połączenia...",
+  "connection_failed_error": "Nie udało się połączyć: {{message}}. Ponawianie próby...",
+  "list_access_denied": "Nie znaleziono listy lub odmowa dostępu."
 }

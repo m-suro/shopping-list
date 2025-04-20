@@ -4,7 +4,7 @@ import { socket } from './socket';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { useTranslation } from 'react-i18next';
 
-// --- Custom useSwipe Hook (No changes) ---
+// --- Custom useSwipe Hook ---
 const useSwipe = (elementRef, { onSwipeRight, threshold = 50 }) => {
     const touchStartX = useRef(null);
     const touchCurrentX = useRef(null);
@@ -200,22 +200,18 @@ function AddItemInlineForm({ listId, onAddItem, onCancel }) {
         if (!trimmedName || !listId) return;
         onAddItem(listId, trimmedName);
         setItemName(''); // Clear input after submitting
-        // Optionally close after submit by calling onCancel() if needed
-        // onCancel?.();
-        // Optionally keep focus or move focus depending on desired UX
-         inputRef.current?.focus();
+        inputRef.current?.focus();
     };
 
     const handleKeyDown = (e) => {
         if (e.key === 'Enter') {
-            e.preventDefault(); // Prevent form submission if wrapped in a form
+            e.preventDefault();
             handleSubmit();
         } else if (e.key === 'Escape') {
             onCancel?.();
         }
     };
 
-    // Container div gets flex-grow
     return (
         <div className="flex gap-2 items-center flex-grow ml-1">
             <input
@@ -225,15 +221,15 @@ function AddItemInlineForm({ listId, onAddItem, onCancel }) {
                 onChange={(e) => setItemName(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={t('add_item_placeholder')}
-                className="flex-grow p-2 border rounded bg-white dark:bg-gray-700 text-text dark:text-dark-text border-primary dark:border-dark-primary focus:ring-accent dark:focus:ring-dark-accent min-w-0 h-10" // Ensure consistent height
+                className="flex-grow p-2 border rounded bg-white dark:bg-gray-700 text-text dark:text-dark-text border-primary dark:border-dark-primary focus:ring-accent dark:focus:ring-dark-accent min-w-0 h-10"
                 required
                 aria-label={t('add_item_placeholder')}
             />
             <button
-                type="button" // Explicitly type="button" to prevent form submission if nested
+                type="button"
                 onClick={handleSubmit}
-                disabled={!itemName.trim()} // Disable button if input is empty
-                className="p-2 bg-primary dark:bg-dark-primary text-white rounded hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 h-10" // Ensure consistent height
+                disabled={!itemName.trim()}
+                className="p-2 bg-primary dark:bg-dark-primary text-white rounded hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 h-10"
             >
                 {t('add_button')}
             </button>
@@ -243,7 +239,7 @@ function AddItemInlineForm({ listId, onAddItem, onCancel }) {
 
 
 // --- ShoppingListItem ---
-// **MODIFIED** Add touch-manipulation to label
+// Includes swipe, touch-manipulation, and increased padding
 function ShoppingListItem({ item, onToggle, onDelete }) {
     const { t } = useTranslation();
     const listItemRef = useRef(null); // Ref for the swipe target element
@@ -273,7 +269,7 @@ function ShoppingListItem({ item, onToggle, onDelete }) {
             <div
                  ref={listItemRef} // Attach the ref to the div that will be moved
                  className={
-                     // Increased padding from py-3 to py-4 for more height
+                     // Increased padding for more height
                      `relative flex items-center justify-between py-4 px-2 rounded transition-all duration-300 ease-in-out z-10 group
                       ${item.completed
                         // Completed state styling: specific background and opacity
@@ -285,7 +281,7 @@ function ShoppingListItem({ item, onToggle, onDelete }) {
                  style={{ '--swipe-progress': 0 }} // Initialize CSS variable for swipe background opacity
              >
                 {/* Label and Checkbox/Item Name */}
-                {/* **MODIFIED**: Added touch-manipulation class */}
+                {/* Added touch-manipulation class */}
                 <label htmlFor={`item-${item._id}`} className="flex items-center gap-3 flex-grow cursor-pointer mr-2 min-w-0 touch-manipulation">
                     <input
                         id={`item-${item._id}`}
@@ -331,231 +327,110 @@ function ShoppingListItem({ item, onToggle, onDelete }) {
 }
 
 
-// --- ShoppingListDetail (No changes) ---
+// --- ShoppingListDetail (No changes needed for auth phase 1) ---
 function ShoppingListDetail({ list, items, onBack, onDeleteList }) {
     const { t } = useTranslation();
     const listId = list?._id;
     const [listAnimationParent] = useAutoAnimate();
     const [controlsAnimationParent] = useAutoAnimate();
-
     const [searchTerm, setSearchTerm] = useState('');
-    const [activeControl, setActiveControl] = useState('none'); // 'none', 'search', 'add'
-    const searchInputRef = useRef(null); // Ref for search input
+    const [activeControl, setActiveControl] = useState('none');
+    const searchInputRef = useRef(null);
 
-    // Memoize filtered and sorted items for performance
-    const filteredAndSortedItems = useMemo(() => {
-        if (!items) return [];
-        const lowerCaseSearchTerm = searchTerm.toLowerCase();
-        const filtered = items.filter(item =>
-            item.name.toLowerCase().includes(lowerCaseSearchTerm)
-        );
-        // Sort: incomplete first, then completed
-        return [...filtered].sort((a, b) => {
-            if (a.completed === b.completed) {
-                // Optionally sort by name or date added if completion status is the same
-                 // return a.name.localeCompare(b.name);
-                 return 0; // Maintain original order for items with same status
-            }
-            return a.completed ? 1 : -1; // false (incomplete) comes first
-        });
-    }, [items, searchTerm]);
-
-    // --- Callbacks ---
+    // Callbacks passed down for item actions
     const handleAddItem = useCallback((targetListId, itemName) => {
-        console.log(`Emitting addItem for list ${targetListId}: ${itemName}`);
         socket.emit('addItem', { listId: targetListId, itemName }, (response) => {
-            if (response?.error) {
-                console.error("Error adding item:", response.error);
-                 alert(`Error: ${response.error}`); // Basic user feedback
-            } else {
-                console.log("Item added successfully via socket:", response);
-                // Keep the add form open for potentially adding more items
-                // setActiveControl('add'); // Ensure it stays open if desired
-            }
+            if (response?.error) alert(`Error: ${response.error}`);
         });
     }, []);
 
     const handleToggleItem = useCallback((itemId) => {
         if (!listId) return;
-        console.log(`Emitting toggleItem for item ${itemId} in list ${listId}`);
         socket.emit('toggleItem', { listId, itemId }, (response) => {
-            if (response?.error) {
-                console.error("Error toggling item:", response.error);
-                 alert(`Error: ${response.error}`); // Basic user feedback
-            } else {
-                console.log("Item toggled successfully via socket:", response);
-                 // **Important**: If using swipe, avoid rapid toggles. Consider adding
-                 // a small delay or debounce if issues arise from quick successive toggles.
-            }
+            if (response?.error) alert(`Error: ${response.error}`);
         });
     }, [listId]);
 
     const handleDeleteItem = useCallback((itemId) => {
         if (!listId) return;
-        // Consider a less intrusive confirmation or none at all for item deletion
-        // if (window.confirm(t('delete_item_confirm'))) {
-            console.log(`Emitting deleteItem for item ${itemId} in list ${listId}`);
-            socket.emit('deleteItem', { listId, itemId }, (response) => {
-                if (response?.error) {
-                    console.error("Error deleting item:", response.error);
-                     alert(`Error: ${response.error}`); // Basic user feedback
-                } else {
-                    console.log("Item deleted successfully via socket", response); // Response might contain success message
-                }
-            });
-        // }
-    }, [listId, t]);
+        socket.emit('deleteItem', { listId, itemId }, (response) => {
+            if (response?.error) alert(`Error: ${response.error}`);
+        });
+    }, [listId]);
 
+    // Memoized items
+    const filteredAndSortedItems = useMemo(() => {
+        if (!items) return [];
+        const lowerCaseSearchTerm = searchTerm.toLowerCase();
+        const filtered = items.filter(item => item.name.toLowerCase().includes(lowerCaseSearchTerm));
+        return [...filtered].sort((a, b) => a.completed === b.completed ? 0 : a.completed ? 1 : -1);
+    }, [items, searchTerm]);
+
+    // Other logic (confirm delete, controls)
     const confirmDeleteList = () => {
         if (window.confirm(t('delete_list_confirm', { listName: list.name }))) {
             onDeleteList(listId);
         }
     }
-
-    // Toggle which control (search or add) is active, or hide both
     const toggleControl = (controlType) => {
-        setActiveControl(prev => {
-            if (prev === controlType) {
-                // If clicking the active control again, close it
-                if (controlType === 'search') setSearchTerm(''); // Clear search when closing
-                return 'none';
-            } else {
-                // Switching to a new control
-                if (controlType === 'search') {
-                    setSearchTerm(''); // Clear search term when opening search
-                    // Focus the search input when it becomes active
-                    requestAnimationFrame(() => searchInputRef.current?.focus());
-                 }
-                // Add other specific actions when switching if needed
-                return controlType;
-            }
-        });
+        setActiveControl(prev => (prev === controlType ? 'none' : controlType));
+        if (controlType === 'search' && activeControl !== 'search') setSearchTerm(''); // Clear search on open
     };
-
-    // Close the currently active control (e.g., on Escape key)
     const closeActiveControl = () => {
         if (activeControl === 'search') setSearchTerm('');
         setActiveControl('none');
-    }
+    };
+    useEffect(() => {
+        if (activeControl === 'search') {
+            requestAnimationFrame(() => searchInputRef.current?.focus());
+        }
+    }, [activeControl]);
 
-     // Effect to focus search input when it becomes active
-     useEffect(() => {
-         if (activeControl === 'search') {
-             // Use requestAnimationFrame to ensure the element is rendered before focusing
-             requestAnimationFrame(() => {
-                 searchInputRef.current?.focus();
-             });
-         }
-     }, [activeControl]);
-
-
-    // Loading state
+    // Render logic
     if (!list) return <div className="text-center p-10">{t('loading')}</div>;
-
-    // Message conditions
     const showEmptyListMessage = items.length === 0 && !searchTerm && activeControl !== 'add';
     const showNoSearchResultsMessage = filteredAndSortedItems.length === 0 && items.length > 0 && searchTerm;
 
     return (
         <div className="p-4 bg-white dark:bg-gray-800 shadow-md rounded-lg">
-            {/* Header */}
-            <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
-                <button onClick={onBack} className="text-primary dark:text-dark-primary hover:underline flex items-center gap-1">
-                     <span className="material-symbols-rounded text-lg leading-none">arrow_back</span>
-                    {t('back_to_lists')}
-                </button>
-                <button onClick={confirmDeleteList} className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm flex items-center gap-1">
-                     <span className="material-symbols-rounded text-lg leading-none">delete_forever</span>
-                    {t('delete_list')}
-                </button>
-            </div>
-
-            {/* List Title */}
-            <h2 className="text-2xl font-semibold mb-3 text-primary dark:text-dark-primary text-center">{list.name}</h2>
-
-            {/* --- Controls Row --- */}
-            <div
-                ref={controlsAnimationParent}
-                className="flex items-center gap-2 my-3 py-2 border-b border-t border-gray-200 dark:border-gray-700 min-h-[56px]" // Consistent min-height for layout stability
-            >
-                {/* Search Toggle Button */}
-                <button
-                    onClick={() => toggleControl('search')}
-                    className={`p-2 rounded-full transition-colors flex-shrink-0 ${activeControl === 'search' ? 'text-accent dark:text-dark-accent bg-accent/10 dark:bg-dark-accent/20' : 'text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-dark-primary'}`}
-                    aria-label={t(activeControl === 'search' ? 'close_search' : 'open_search')}
-                    aria-expanded={activeControl === 'search'}
-                     aria-controls="search-input-container" // Link button to the element it controls
-                >
-                    <span className="material-symbols-rounded">search</span>
-                </button>
-
-                {/* Add Item Toggle Button */}
-                <button
-                    onClick={() => toggleControl('add')}
-                    className={`p-2 rounded-full transition-colors flex-shrink-0 ${activeControl === 'add' ? 'text-accent dark:text-dark-accent bg-accent/10 dark:bg-dark-accent/20' : 'text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-dark-primary'}`}
-                    aria-label={t(activeControl === 'add' ? 'close_add_item' : 'open_add_item')}
-                    aria-expanded={activeControl === 'add'}
-                    aria-controls="add-item-form-container" // Link button to the element it controls
-                >
-                    <span className="material-symbols-rounded">add_circle</span>
-                </button>
-
-                {/* Expanded Area (Search Input OR Add Form) */}
-                 {/* Use key prop to help animation library detect changes */}
-                {activeControl === 'search' && (
-                    <div key="search-control" id="search-input-container" className="flex items-center flex-grow ml-1">
-                        <input
-                             ref={searchInputRef} // Assign ref here
-                            type="search"
-                            placeholder={t('search_items_placeholder')}
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                             className="flex-grow p-2 border rounded bg-white dark:bg-gray-700 text-text dark:text-dark-text border-primary dark:border-dark-primary focus:ring-accent dark:focus:ring-dark-accent min-w-0 h-10" // Consistent height
-                            onKeyDown={(e) => e.key === 'Escape' && closeActiveControl()}
-                            aria-label={t('search_items_placeholder')}
-                        />
-                     </div>
-                )}
-
-                {activeControl === 'add' && (
-                     <div key="add-control" id="add-item-form-container" className="flex-grow">
-                         <AddItemInlineForm
-                            listId={listId}
-                            onAddItem={handleAddItem}
-                            onCancel={closeActiveControl}
-                         />
-                    </div>
-                )}
-                 {/* Placeholder when neither is active to maintain height, styled invisibly */}
-                 {activeControl === 'none' && (
-                      <div key="none-control" className="flex-grow min-h-[40px]"></div> // Adjust min-height to match input height
+             {/* Header */}
+             <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
+                 <button onClick={onBack} className="text-primary dark:text-dark-primary hover:underline flex items-center gap-1">
+                     <span className="material-symbols-rounded text-lg leading-none">arrow_back</span>{t('back_to_lists')}
+                 </button>
+                 <button onClick={confirmDeleteList} className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm flex items-center gap-1">
+                     <span className="material-symbols-rounded text-lg leading-none">delete_forever</span>{t('delete_list')}
+                 </button>
+             </div>
+             {/* Title */}
+             <h2 className="text-2xl font-semibold mb-3 text-primary dark:text-dark-primary text-center">{list.name}</h2>
+              {/* Controls Row */}
+             <div ref={controlsAnimationParent} className="flex items-center gap-2 my-3 py-2 border-b border-t border-gray-200 dark:border-gray-700 min-h-[56px]">
+                 <button onClick={() => toggleControl('search')} className={`p-2 rounded-full transition-colors flex-shrink-0 ${activeControl === 'search' ? 'text-accent dark:text-dark-accent bg-accent/10 dark:bg-dark-accent/20' : 'text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-dark-primary'}`} aria-label={t(activeControl === 'search' ? 'close_search' : 'open_search')} aria-expanded={activeControl === 'search'} aria-controls="search-input-container">
+                     <span className="material-symbols-rounded">search</span>
+                 </button>
+                 <button onClick={() => toggleControl('add')} className={`p-2 rounded-full transition-colors flex-shrink-0 ${activeControl === 'add' ? 'text-accent dark:text-dark-accent bg-accent/10 dark:bg-dark-accent/20' : 'text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-dark-primary'}`} aria-label={t(activeControl === 'add' ? 'close_add_item' : 'open_add_item')} aria-expanded={activeControl === 'add'} aria-controls="add-item-form-container">
+                     <span className="material-symbols-rounded">add_circle</span>
+                 </button>
+                 {activeControl === 'search' && (
+                     <div key="search-control" id="search-input-container" className="flex items-center flex-grow ml-1"> <input ref={searchInputRef} type="search" placeholder={t('search_items_placeholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-grow p-2 border rounded bg-white dark:bg-gray-700 text-text dark:text-dark-text border-primary dark:border-dark-primary focus:ring-accent dark:focus:ring-dark-accent min-w-0 h-10" onKeyDown={(e) => e.key === 'Escape' && closeActiveControl()} aria-label={t('search_items_placeholder')} /> </div>
                  )}
-            </div>
-
-
-            {/* Item List Area */}
-            {showEmptyListMessage ? (
-                 <p className="text-gray-500 dark:text-gray-400 italic mt-4 text-center">{t('empty_list_message')}</p>
-            ) : showNoSearchResultsMessage ? (
-                 <p className="text-center text-gray-500 dark:text-gray-400 italic mt-4">{t('no_search_results')}</p>
-            ) : (
-                <ul ref={listAnimationParent} className="list-none p-0 mb-4">
-                    {filteredAndSortedItems.map(item => (
-                        <ShoppingListItem
-                            key={item._id}
-                            item={item}
-                            onToggle={handleToggleItem}
-                            onDelete={handleDeleteItem}
-                        />
-                    ))}
-                </ul>
-            )}
+                 {activeControl === 'add' && (
+                     <div key="add-control" id="add-item-form-container" className="flex-grow"> <AddItemInlineForm listId={listId} onAddItem={handleAddItem} onCancel={closeActiveControl} /> </div>
+                 )}
+                 {activeControl === 'none' && ( <div key="none-control" className="flex-grow min-h-[40px]"></div> )}
+             </div>
+             {/* Item List Area */}
+             {showEmptyListMessage ? ( <p className="text-gray-500 dark:text-gray-400 italic mt-4 text-center">{t('empty_list_message')}</p> )
+              : showNoSearchResultsMessage ? ( <p className="text-center text-gray-500 dark:text-gray-400 italic mt-4">{t('no_search_results')}</p> )
+              : ( <ul ref={listAnimationParent} className="list-none p-0 mb-4"> {filteredAndSortedItems.map(item => ( <ShoppingListItem key={item._id} item={item} onToggle={handleToggleItem} onDelete={handleDeleteItem} /> ))} </ul> )}
         </div>
     );
 }
 
 
-// --- AddListModal Component (NEW) ---
+// --- AddListModal Component ---
+// Includes focus and escape key handling
 function AddListModal({ isOpen, onClose, onAddList }) {
     const { t } = useTranslation();
     const [listName, setListName] = useState('');
@@ -564,12 +439,8 @@ function AddListModal({ isOpen, onClose, onAddList }) {
     // Focus input when modal opens
     useEffect(() => {
         if (isOpen) {
-             // Use setTimeout to ensure the input is rendered and focusable after the modal transition (if any)
-             setTimeout(() => {
-                inputRef.current?.focus();
-            }, 50); // Small delay often helps
+             setTimeout(() => { inputRef.current?.focus(); }, 50);
         } else {
-             // Reset name when closing
              setListName('');
         }
     }, [isOpen]);
@@ -577,79 +448,31 @@ function AddListModal({ isOpen, onClose, onAddList }) {
     // Handle Escape key press
     useEffect(() => {
         const handleKeyDown = (event) => {
-            if (event.key === 'Escape') {
-                onClose();
-            }
+            if (event.key === 'Escape') onClose();
         };
-
-        if (isOpen) {
-            window.addEventListener('keydown', handleKeyDown);
-        }
-
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-        };
+        if (isOpen) window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, onClose]);
 
     const handleSubmit = (e) => {
-        e.preventDefault(); // Prevent default form submission
-        const trimmedName = listName.trim();
-        onAddList(trimmedName); // onAddList from App will handle the empty name case
-        onClose(); // Close modal after submission
+        e.preventDefault();
+        onAddList(listName.trim());
+        onClose();
     };
 
-    if (!isOpen) {
-        return null; // Don't render anything if not open
-    }
+    if (!isOpen) return null;
 
     return (
         // Overlay
-        <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-200 ease-in-out"
-            onClick={onClose} // Close on overlay click
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="add-list-modal-title"
-        >
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-200 ease-in-out" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-list-modal-title">
             {/* Modal Content Box */}
-            <div
-                className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-sm w-full transform transition-all duration-200 ease-in-out scale-95 opacity-0 animate-modal-enter"
-                onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
-            >
-                {/* Add Tailwind keyframes for modal enter animation if desired */}
-                {/* Example (in your global CSS or index.css):
-                    @keyframes modal-enter {
-                        from { opacity: 0; transform: scale(0.95); }
-                        to { opacity: 1; transform: scale(1); }
-                    }
-                    .animate-modal-enter { animation: modal-enter 0.2s ease-out forwards; }
-                */}
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-sm w-full transform transition-all duration-200 ease-in-out scale-95 opacity-0 animate-modal-enter" onClick={(e) => e.stopPropagation()}>
                 <h2 id="add-list-modal-title" className="text-xl font-semibold mb-4 text-primary dark:text-dark-primary">{t('create_list_button')}</h2>
                 <form onSubmit={handleSubmit}>
-                    <input
-                        ref={inputRef}
-                        type="text"
-                        value={listName}
-                        onChange={(e) => setListName(e.target.value)}
-                        placeholder={t('new_list_placeholder')}
-                        className="w-full p-2 border rounded bg-white dark:bg-gray-700 text-text dark:text-dark-text border-primary dark:border-dark-primary focus:ring-accent dark:focus:ring-dark-accent mb-4"
-                        aria-label={t('new_list_placeholder')}
-                        maxLength={100}
-                    />
+                    <input ref={inputRef} type="text" value={listName} onChange={(e) => setListName(e.target.value)} placeholder={t('new_list_placeholder')} className="w-full p-2 border rounded bg-white dark:bg-gray-700 text-text dark:text-dark-text border-primary dark:border-dark-primary focus:ring-accent dark:focus:ring-dark-accent mb-4" aria-label={t('new_list_placeholder')} maxLength={100} />
                     <div className="flex justify-end gap-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-600 text-text dark:text-dark-text hover:opacity-80 transition-opacity"
-                        >
-                             {t('cancel_button', 'Cancel')} {/* Add translation key if needed */}
-                        </button>
-                        <button
-                            type="submit"
-                            className="px-4 py-2 rounded bg-accent dark:bg-dark-accent text-white hover:opacity-90 transition-opacity"
-                        >
-                            {t('create_button', 'Create')} {/* Add translation key if needed */}
-                        </button>
+                        <button type="button" onClick={onClose} className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-600 text-text dark:text-dark-text hover:opacity-80 transition-opacity"> {t('cancel_button', 'Cancel')} </button>
+                        <button type="submit" className="px-4 py-2 rounded bg-accent dark:bg-dark-accent text-white hover:opacity-90 transition-opacity"> {t('create_button', 'Create')} </button>
                     </div>
                 </form>
             </div>
@@ -659,21 +482,19 @@ function AddListModal({ isOpen, onClose, onAddList }) {
 
 
 // --- ShoppingLists ---
-// **MODIFIED** Removed AddListForm, added button and modal state/trigger
+// Uses button and modal for adding lists
 function ShoppingLists({ lists, onSelectList, onAddList }) {
     const { t } = useTranslation();
     const [listAnimationParent] = useAutoAnimate();
-    const [isAddListModalOpen, setIsAddListModalOpen] = useState(false); // State for modal
+    const [isAddListModalOpen, setIsAddListModalOpen] = useState(false);
 
     const handleOpenModal = () => setIsAddListModalOpen(true);
     const handleCloseModal = () => setIsAddListModalOpen(false);
 
-    // Wrap the original onAddList to close the modal
     const handleAddListAndCloseModal = (name) => {
          onAddList(name);
          handleCloseModal();
     };
-
 
     return (
         <div className="p-4 bg-white dark:bg-gray-800 shadow-md rounded-lg">
@@ -681,413 +502,385 @@ function ShoppingLists({ lists, onSelectList, onAddList }) {
             {lists.length === 0 ? (
                 <p className="text-center text-gray-500 dark:text-gray-400">{t('no_lists_message')}</p>
             ) : (
-                <ul ref={listAnimationParent} className="space-y-2 list-none p-0 mb-6"> {/* Add margin-bottom */}
+                <ul ref={listAnimationParent} className="space-y-2 list-none p-0 mb-6">
                     {lists.map(list => (
-                        <li key={list._id}
-                            className="flex justify-between items-center p-3 bg-secondary/30 dark:bg-dark-secondary/30 rounded cursor-pointer hover:bg-secondary/50 dark:hover:bg-dark-secondary/50 transition-colors"
-                            onClick={() => onSelectList(list._id)}
-                            role="button" // Indicate it's clickable
-                            tabIndex={0} // Make it focusable
-                            onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onSelectList(list._id)} // Keyboard accessible
-                        >
+                        <li key={list._id} className="flex justify-between items-center p-3 bg-secondary/30 dark:bg-dark-secondary/30 rounded cursor-pointer hover:bg-secondary/50 dark:hover:bg-dark-secondary/50 transition-colors" onClick={() => onSelectList(list._id)} role="button" tabIndex={0} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onSelectList(list._id)}>
                             <span className="font-medium text-text dark:text-dark-text break-words">{list.name}</span>
-                             {/* Use a more descriptive icon for clarity */}
                             <span className="material-symbols-rounded text-primary dark:text-dark-primary" aria-hidden="true">chevron_right</span>
                         </li>
                     ))}
                 </ul>
             )}
-             {/* **MODIFIED**: Replaced AddListForm with a button */}
              <div className="mt-6 pt-4 border-t border-secondary dark:border-dark-secondary flex justify-center">
-                 <button
-                     type="button"
-                     onClick={handleOpenModal}
-                     className="w-full sm:w-auto px-5 py-2 bg-accent dark:bg-dark-accent text-white rounded hover:opacity-90 flex items-center justify-center gap-2 transition-opacity"
-                 >
-                     <span className="material-symbols-rounded">add</span>
-                     {t('create_list_button')}
+                 <button type="button" onClick={handleOpenModal} className="w-full sm:w-auto px-5 py-2 bg-accent dark:bg-dark-accent text-white rounded hover:opacity-90 flex items-center justify-center gap-2 transition-opacity">
+                     <span className="material-symbols-rounded">add</span> {t('create_list_button')}
                  </button>
              </div>
-
-             {/* Render the modal */}
-             <AddListModal
-                isOpen={isAddListModalOpen}
-                onClose={handleCloseModal}
-                onAddList={handleAddListAndCloseModal}
-             />
+             <AddListModal isOpen={isAddListModalOpen} onClose={handleCloseModal} onAddList={handleAddListAndCloseModal} />
         </div>
-    )
+    );
 }
 
-// --- Main App Component (No changes) ---
+// --- NEW: Login Component ---
+function Login({ onLogin, error, setError }) {
+    const { t } = useTranslation();
+    const [username, setUsername] = useState('');
+    const [pin, setPin] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    const API_URL = import.meta.env.VITE_SERVER_URL;
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!username || !pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+             setError(t('login_invalid_input', 'Please enter username and a 4-digit PIN.'));
+             return;
+        }
+        setIsLoading(true);
+        setError(null); // Clear previous errors
+
+        try {
+            const response = await fetch(`${API_URL}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, pin }),
+                 credentials: 'include' // **Important**: Send cookies with the request
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || `HTTP error ${response.status}`);
+            }
+
+            console.log("Login successful:", data);
+            onLogin(data); // Pass user data up to App component
+
+        } catch (err) {
+            console.error("Login failed:", err);
+            setError(err.message || t('login_failed_generic', 'Login failed. Please try again.'));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-background dark:bg-dark-background p-4">
+            <div className="w-full max-w-xs p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+                <h1 className="text-2xl font-bold mb-6 text-center text-primary dark:text-dark-primary">
+                    {t('login_title', 'Login')}
+                </h1>
+                {error && (
+                    <p className="mb-4 text-center text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/50 p-2 rounded text-sm">
+                        {error}
+                    </p>
+                )}
+                <form onSubmit={handleSubmit}>
+                    <div className="mb-4">
+                        <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {t('username_label', 'Username')}
+                        </label>
+                        <input
+                            type="text"
+                            id="username"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                            required
+                            className="w-full p-2 border rounded bg-white dark:bg-gray-700 text-text dark:text-dark-text border-primary dark:border-dark-primary focus:ring-accent dark:focus:ring-dark-accent"
+                            autoCapitalize="none"
+                        />
+                    </div>
+                    <div className="mb-6">
+                        <label htmlFor="pin" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {t('pin_label', '4-Digit PIN')}
+                        </label>
+                        <input
+                            type="password" // Use password type for masking
+                            id="pin"
+                            value={pin}
+                            onChange={(e) => setPin(e.target.value.replace(/\D/g,''))} // Allow only digits
+                            required
+                            maxLength="4"
+                            minLength="4"
+                            inputMode="numeric" // Hint for mobile numeric keyboard
+                            pattern="\d{4}" // Basic pattern validation
+                            className="w-full p-2 border rounded bg-white dark:bg-gray-700 text-text dark:text-dark-text border-primary dark:border-dark-primary focus:ring-accent dark:focus:ring-dark-accent"
+                        />
+                    </div>
+                    <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="w-full px-4 py-2 rounded bg-accent dark:bg-dark-accent text-white hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center"
+                    >
+                        {isLoading ? (
+                             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        ) : (
+                            t('login_button', 'Log In')
+                        )}
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+
+// --- Main App Component ---
+// Includes Auth State, Session Check, Conditional Rendering
 function App() {
     const { t, i18n } = useTranslation();
     const [isConnected, setIsConnected] = useState(socket.connected);
     const [isDarkMode, setIsDarkMode] = useState(() => {
-        // 1. Check localStorage
         const storedTheme = localStorage.getItem('theme');
         if (storedTheme) return storedTheme === 'dark';
-        // 2. Check prefers-color-scheme media query
         return window.matchMedia('(prefers-color-scheme: dark)').matches;
     });
-
     const [currentLanguage, setCurrentLanguage] = useState(i18n.language.split('-')[0]);
+
+    // --- Authentication State ---
+    const [currentUser, setCurrentUser] = useState(null);
+    const [isAuthLoading, setIsAuthLoading] = useState(true);
+    const [authError, setAuthError] = useState(null);
 
     const [lists, setLists] = useState([]);
     const [currentListId, setCurrentListId] = useState(null);
     const [currentListItems, setCurrentListItems] = useState([]);
-    const [isLoading, setIsLoading] = useState(true); // Combined loading state
-    const [error, setError] = useState(null); // Global error state
+    const [isLoading, setIsLoading] = useState(false); // General loading for list/item data
+    const [error, setError] = useState(null); // General errors
 
-    // Ref to track the current list ID, useful inside socket event listeners
     const currentListIdRef = useRef(currentListId);
-    useEffect(() => {
-        currentListIdRef.current = currentListId;
-    }, [currentListId]);
+    useEffect(() => { currentListIdRef.current = currentListId; }, [currentListId]);
 
-    // --- Theme Handling ---
+    const API_URL = import.meta.env.VITE_SERVER_URL;
+
+    // --- Theme Handling (unchanged) ---
     useEffect(() => {
-        if (isDarkMode) {
-            document.documentElement.classList.add('dark');
-            localStorage.setItem('theme', 'dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-            localStorage.setItem('theme', 'light');
-        }
+        if (isDarkMode) { document.documentElement.classList.add('dark'); localStorage.setItem('theme', 'dark'); }
+        else { document.documentElement.classList.remove('dark'); localStorage.setItem('theme', 'light'); }
     }, [isDarkMode]);
+    const toggleTheme = (isNowDark) => setIsDarkMode(isNowDark);
 
-    const toggleTheme = (isNowDark) => {
-        setIsDarkMode(isNowDark);
-    };
-
-    // --- Language Handling ---
-    const changeLanguage = (lng) => {
-        i18n.changeLanguage(lng); // i18next handles updating 'currentLanguage' state via event listener
-    };
-
+    // --- Language Handling (unchanged) ---
+    const changeLanguage = (lng) => i18n.changeLanguage(lng);
     useEffect(() => {
         const handleLanguageChange = (lng) => setCurrentLanguage(lng.split('-')[0]);
         i18n.on('languageChanged', handleLanguageChange);
-        // Set initial language based on i18n's detected language
         setCurrentLanguage(i18n.language.split('-')[0]);
-        return () => {
-            i18n.off('languageChanged', handleLanguageChange);
-        };
+        return () => i18n.off('languageChanged', handleLanguageChange);
     }, [i18n]);
 
-    // --- API Base URL ---
-    const API_URL = import.meta.env.VITE_SERVER_URL;
 
-    // --- Fetch Initial Data ---
-    const fetchLists = useCallback(async () => {
-        console.log("Fetching lists...");
-        if (!API_URL) {
-            setError("Server URL is not configured.");
-            setIsLoading(false);
-            return;
+    // --- Logout Handler ---
+    const handleLogout = useCallback(async (logoutMessage = null) => {
+        console.log("Handling logout...");
+        setError(null); // Clear general errors
+        setAuthError(logoutMessage); // Set specific logout message if provided
+        setCurrentUser(null); // Clear user state *first*
+        setLists([]);
+        setCurrentListId(null);
+        setCurrentListItems([]);
+
+        if (socket.connected) {
+            console.log("Disconnecting socket on logout.");
+            socket.disconnect();
         }
-        setIsLoading(true);
-        setError(null); // Clear previous errors
-        try {
-            const response = await fetch(`${API_URL}/api/lists`);
-            if (!response.ok) {
-                 const errorData = await response.json().catch(() => ({ message: response.statusText }));
-                 throw new Error(`HTTP error ${response.status}: ${errorData.message || 'Failed to fetch lists'}`);
-            }
-            const data = await response.json();
-            setLists(data);
-            console.log("Lists fetched:", data.length);
-        } catch (error) {
-            console.error("Failed to fetch lists:", error);
-            setError(`Failed to load lists: ${error.message}`);
-            setLists([]);
-        } finally {
-             // Only stop loading indicator if not currently viewing a specific list
-            if (!currentListIdRef.current) {
-                setIsLoading(false);
+
+        if (API_URL) {
+            try {
+                await fetch(`${API_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
+                console.log("Server logout requested.");
+            } catch (err) {
+                console.error("Error requesting server logout:", err);
             }
         }
-    }, [API_URL]); // Depend on API_URL
+    }, [API_URL]); // Depend only on API_URL
 
-    const fetchItemsForList = useCallback(async (listId) => {
-        if (!listId) {
-            setCurrentListItems([]);
-            setIsLoading(false); // Stop loading if no list ID
-            return;
-        };
-         if (!API_URL) {
-            setError("Server URL is not configured.");
-            setIsLoading(false);
-            return;
-        }
-        console.log(`Fetching items for list: ${listId}`);
-        setIsLoading(true);
-        setError(null);
-        try {
-            const response = await fetch(`${API_URL}/api/lists/${listId}/items`);
-            if (!response.ok) {
-                 const errorData = await response.json().catch(() => ({ message: response.statusText }));
-                 throw new Error(`HTTP error ${response.status}: ${errorData.message || 'Failed to fetch items'}`);
-            }
-            const data = await response.json();
-            setCurrentListItems(data);
-            console.log("Items fetched:", data.length);
-        } catch (error) {
-            console.error(`Failed to fetch items for list ${listId}:`, error);
-            setError(`Failed to load items for this list: ${error.message}`);
-            setCurrentListItems([]); // Clear items on error
-        } finally {
-            setIsLoading(false); // Always stop loading after fetching items
-        }
-    }, [API_URL]); // Depend on API_URL
 
-    // --- Socket Connection & Event Listeners ---
+     // --- Check Session on Load ---
     useEffect(() => {
-        console.log("Setting up socket listeners...");
-
-        function onConnect() {
-            console.log('Socket connected!');
-            setIsConnected(true);
-            setError(null); // Clear connection errors on successful connect
-            fetchLists(); // Refresh lists on connect/reconnect
-            if (currentListIdRef.current) {
-                console.log("Re-joining list room:", currentListIdRef.current);
-                socket.emit('joinList', currentListIdRef.current);
-                fetchItemsForList(currentListIdRef.current); // Re-fetch items for current list
+        const checkUserSession = async () => {
+             console.log("Checking user session...");
+             setIsAuthLoading(true);
+             setAuthError(null);
+             if (!API_URL) {
+                 setAuthError("Configuration Error: Server URL missing.");
+                 setIsAuthLoading(false);
+                 return;
+             }
+             try {
+                const response = await fetch(`${API_URL}/api/auth/session`, { credentials: 'include' });
+                if (response.status === 401) {
+                    console.log("No valid session found.");
+                    setCurrentUser(null);
+                     if(socket.connected) socket.disconnect(); // Disconnect if session invalid
+                } else if (response.ok) {
+                    const userData = await response.json();
+                    console.log("Session valid, user:", userData.username);
+                    setCurrentUser(userData); // Set user state *before* connecting socket
+                } else {
+                     const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                     throw new Error(errorData.message || `HTTP error ${response.status}`);
+                }
+            } catch (err) {
+                console.error("Session check failed:", err);
+                setAuthError(`Session check failed: ${err.message}`);
+                setCurrentUser(null);
+                 if (socket.connected) socket.disconnect();
+            } finally {
+                setIsAuthLoading(false);
             }
-        }
+        };
+        checkUserSession();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [API_URL]); // Depend only on API_URL
 
-        function onDisconnect(reason) {
-            console.warn(`Socket disconnected! Reason: ${reason}`);
-            setIsConnected(false);
-            // Optionally set an error message if the disconnection wasn't planned
-            if (reason !== 'io client disconnect') { // Don't show error if we disconnected manually
-                setError("Connection lost. Attempting to reconnect...");
+    // --- Fetch Lists (Depends on currentUser) ---
+    const fetchLists = useCallback(async () => {
+         if (!currentUser || !API_URL) return;
+        console.log("Fetching lists for user:", currentUser.username);
+        setIsLoading(true); setError(null);
+        try {
+            const response = await fetch(`${API_URL}/api/lists`, { credentials: 'include' });
+            if (!response.ok) {
+                 const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                 if (response.status === 401) { handleLogout(t('session_expired_error', 'Session expired, please log in again.')); }
+                 throw new Error(errorData.message || `HTTP ${response.status}: Failed to fetch lists`);
             }
+            setLists(await response.json());
+        } catch (error) {
+            console.error("Failed to fetch lists:", error); setError(`Failed to load lists: ${error.message}`); setLists([]);
+        } finally {
+            if (!currentListIdRef.current) setIsLoading(false);
         }
+    }, [API_URL, currentUser, t, handleLogout]); // Add handleLogout
 
-        function onConnectError(err) {
-            console.error("Socket connection attempt failed:", err.message);
-            setError(`Failed to connect: ${err.message}. Retrying...`);
-             setIsConnected(false);
-        }
-
-        // --- Data Update Handlers ---
-        function onListsUpdated() {
-            console.log("Received listsUpdated event, fetching lists...");
-            fetchLists();
-        }
-
-        function onListDeleted(deletedListId) {
-            console.log("Received listDeleted event for ID:", deletedListId);
-             // Update the list state locally first for faster UI feedback
-             setLists(prevLists => prevLists.filter(list => list._id !== deletedListId));
-             // If the currently viewed list was deleted, navigate back
-            if (currentListIdRef.current === deletedListId) {
-                console.log("Current list deleted, navigating back.");
-                setCurrentListId(null);
-                setCurrentListItems([]);
+    // --- Fetch Items (Depends on currentUser) ---
+    const fetchItemsForList = useCallback(async (listId) => {
+        if (!listId || !currentUser || !API_URL) { setCurrentListItems([]); setIsLoading(false); return; }
+        console.log(`Fetching items for list: ${listId}`);
+        setIsLoading(true); setError(null);
+        try {
+            const response = await fetch(`${API_URL}/api/lists/${listId}/items`, { credentials: 'include' });
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                if (response.status === 401) { handleLogout(t('session_expired_error', 'Session expired, please log in again.')); }
+                if (response.status === 404 || response.status === 403) { throw new Error(errorData.message || t('list_access_denied', 'List not found or access denied.')); }
+                throw new Error(errorData.message || `HTTP ${response.status}: Failed to fetch items`);
             }
-            // No need to call fetchLists again, already handled by local update and listDeleted event
+            setCurrentListItems(await response.json());
+        } catch (error) {
+            console.error(`Failed to fetch items for list ${listId}:`, error); setError(`Failed to load items for this list: ${error.message}`); setCurrentListItems([]);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [API_URL, currentUser, t, handleLogout]); // Add handleLogout
+
+    // --- Socket Connection & Event Listeners (Depends on currentUser) ---
+    useEffect(() => {
+        if (!currentUser || !API_URL) {
+             if (socket.connected) { console.log("Disconnecting socket (no user/URL)."); socket.disconnect(); }
+             return;
         }
 
-        function onItemAdded(newItem) {
-            console.log("Received itemAdded:", newItem);
-            // Add item only if we are viewing the correct list
-            if (newItem.listId === currentListIdRef.current) {
-                // Use functional update to avoid stale state issues
-                setCurrentListItems(prevItems => {
-                     // Avoid adding duplicates if event arrives multiple times quickly
-                     if (prevItems.some(item => item._id === newItem._id)) {
-                         return prevItems;
-                     }
-                     return [...prevItems, newItem];
-                });
-            }
-        }
+        console.log("Setting up socket listeners for:", currentUser.username);
 
-        function onItemUpdated(updatedItem) {
-            console.log("Received itemUpdated:", updatedItem);
-            if (updatedItem.listId === currentListIdRef.current) {
-                 setCurrentListItems(prevItems =>
-                    prevItems.map(item => item._id === updatedItem._id ? updatedItem : item)
-                );
-            }
-        }
+        // --- Socket Listeners ---
+        function onConnect() { console.log('Socket connected'); setIsConnected(true); setError(null); fetchLists(); if (currentListIdRef.current) { socket.emit('joinList', currentListIdRef.current); } }
+        function onDisconnect(reason) { console.warn(`Socket disconnected! Reason: ${reason}`); setIsConnected(false); if (reason === 'io server disconnect') { handleLogout(t('session_expired_error', 'Session expired, please log in again.')); } else if (reason !== 'io client disconnect') { setError(t('connection_lost_error', 'Connection lost...')); } }
+        function onConnectError(err) { console.error("Socket connection error:", err.message); if (err.message.includes('Authentication error')) { handleLogout(t('authentication_error', 'Authentication failed.')); } else { setError(t('connection_failed_error', `Connect failed: ${err.message}`)); } setIsConnected(false); }
+        function onListsUpdated() { console.log("Lists updated event received"); fetchLists(); }
+        function onListDeleted(deletedListId) { console.log("List deleted event received:", deletedListId); setLists(prev => prev.filter(l => l._id !== deletedListId)); if (currentListIdRef.current === deletedListId) { setCurrentListId(null); setCurrentListItems([]); } }
+        function onItemAdded(newItem) { console.log("Item added event:", newItem); if (newItem.listId === currentListIdRef.current) { setCurrentListItems(prev => prev.some(i => i._id === newItem._id) ? prev : [...prev, newItem]); } }
+        function onItemUpdated(updatedItem) { console.log("Item updated event:", updatedItem); if (updatedItem.listId === currentListIdRef.current) { setCurrentListItems(prev => prev.map(i => i._id === updatedItem._id ? updatedItem : i)); } }
+        function onItemDeleted(deletedItemId) { console.log("Item deleted event:", deletedItemId); setCurrentListItems(prev => prev.filter(i => i._id !== deletedItemId)); }
 
-        function onItemDeleted(deletedItemId) {
-            console.log("Received itemDeleted:", deletedItemId);
-             // Filter out item only if we are viewing the correct list (though backend ensures this)
-             // Check if item exists before filtering (might be redundant but safe)
-             setCurrentListItems(prevItems => prevItems.filter(item => item._id !== deletedItemId));
-        }
-
-
-        // --- Register listeners ---
         socket.on('connect', onConnect);
         socket.on('disconnect', onDisconnect);
-        socket.on('connect_error', onConnectError); // Handle initial connection errors
+        socket.on('connect_error', onConnectError);
         socket.on('listsUpdated', onListsUpdated);
         socket.on('listDeleted', onListDeleted);
         socket.on('itemAdded', onItemAdded);
         socket.on('itemUpdated', onItemUpdated);
         socket.on('itemDeleted', onItemDeleted);
 
-        // --- Connect the socket ---
-        // Ensure API_URL is available before connecting
-        if (API_URL) {
-            console.log("Calling socket.connect()");
-            socket.connect();
-        } else {
-             console.error("Cannot connect socket: VITE_SERVER_URL is not set.");
-             setError("Configuration error: Server URL missing.");
-             setIsLoading(false);
+        // Connect socket only if user is set and not already connected
+        if (!socket.connected) {
+             console.log("Connecting socket...");
+             // Socket middleware will use cookie for auth
+             socket.connect();
         }
 
-
-        // --- Cleanup listeners on component unmount ---
-        return () => {
-            console.log("Cleaning up socket listeners...");
+        return () => { // Cleanup
+            console.log("Cleaning up socket listeners for:", currentUser?.username);
             socket.off('connect', onConnect);
             socket.off('disconnect', onDisconnect);
-             socket.off('connect_error', onConnectError);
+            socket.off('connect_error', onConnectError);
             socket.off('listsUpdated', onListsUpdated);
             socket.off('listDeleted', onListDeleted);
             socket.off('itemAdded', onItemAdded);
             socket.off('itemUpdated', onItemUpdated);
             socket.off('itemDeleted', onItemDeleted);
-            // Optionally disconnect if the app component unmounts entirely
-            // This prevents lingering connections if the component is part of a larger app
-            // console.log("Calling socket.disconnect() on cleanup");
-            // socket.disconnect();
+            // Do not disconnect here unless the App component itself unmounts
         };
-    }, [fetchLists, fetchItemsForList, API_URL]); // Add API_URL dependency
+    }, [currentUser, API_URL, fetchLists, fetchItemsForList, t, handleLogout]); // Include handleLogout
 
-    // --- Actions ---
-    const handleSelectList = (listId) => {
-        if (currentListId === listId) return; // Avoid unnecessary actions if already selected
-
-        // Leave the previous room if there was one
-        if (currentListIdRef.current) {
-            console.log("Leaving previous list room:", currentListIdRef.current);
-            socket.emit('leaveList', currentListIdRef.current);
-        }
-
-        console.log("Selecting list:", listId);
-        setCurrentListId(listId); // Update state
-        setCurrentListItems([]); // Clear previous items immediately
-        fetchItemsForList(listId); // Fetch new items (will set loading state)
-
-        // Join the new room
-        console.log("Joining new list room:", listId);
-        socket.emit('joinList', listId);
+    // --- Login Handler ---
+    const handleLogin = (userData) => {
+        console.log("Handling login, setting user:", userData.username);
+        setCurrentUser(userData);
+        setAuthError(null);
+        // Socket connection & data fetch triggered by useEffect watching currentUser
     };
 
-    const handleBackToLists = () => {
-        if (currentListIdRef.current) {
-            console.log("Leaving list room:", currentListIdRef.current);
-            socket.emit('leaveList', currentListIdRef.current);
-        }
-        setCurrentListId(null);
-        setCurrentListItems([]);
-        setError(null); // Clear list-specific errors when going back
-    };
-
-    // **MODIFIED** onAddList now handles empty name case using translation
-    const handleAddList = (listName) => {
-         const nameToSend = listName || t('new_list_placeholder'); // Use placeholder from translation if empty
-        console.log("Emitting addList:", nameToSend);
-        socket.emit('addList', nameToSend, (response) => {
-            if (response?.error) {
-                console.error("Error adding list:", response.error);
-                setError(`Failed to add list: ${response.error}`); // Show error
-            } else {
-                console.log("List added via socket, response:", response);
-                // listsUpdated event will handle fetching new list data
-                setError(null); // Clear error on success
-            }
-        });
-    };
-
-    const handleDeleteList = (listId) => {
-        console.log("Emitting deleteList:", listId);
-        socket.emit('deleteList', listId, (response) => {
-            if (response?.error) {
-                console.error("Error deleting list:", response.error);
-                setError(`Failed to delete list: ${response.error}`); // Show error
-            } else {
-                console.log("List delete requested via socket, response:", response);
-                 // listDeleted event will handle UI updates
-                setError(null); // Clear error on success
-            }
-        });
-    };
+    // --- List/Item Actions (Rely on backend auth checks) ---
+    const handleSelectList = (listId) => { if (!currentUser || currentListId === listId) return; if (currentListIdRef.current) socket.emit('leaveList', currentListIdRef.current); setCurrentListId(listId); setCurrentListItems([]); fetchItemsForList(listId); socket.emit('joinList', listId); };
+    const handleBackToLists = () => { if (!currentUser) return; if (currentListIdRef.current) socket.emit('leaveList', currentListIdRef.current); setCurrentListId(null); setCurrentListItems([]); setError(null); };
+    const handleAddList = (listName) => { if (!currentUser) return; const nameToSend = listName || t('new_list_placeholder'); socket.emit('addList', nameToSend, (res) => { if (res?.error) setError(res.error); else setError(null); }); };
+    const handleDeleteList = (listId) => { if (!currentUser) return; socket.emit('deleteList', listId, (res) => { if (res?.error) setError(res.error); else setError(null); }); };
 
     // --- Render Logic ---
-    const currentList = !isLoading && lists.find(list => list._id === currentListId);
+    const currentList = currentUser && !isLoading && lists.find(list => list._id === currentListId);
+
+    if (isAuthLoading) {
+        return ( <div className="flex justify-center items-center min-h-screen bg-background dark:bg-dark-background"> <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary dark:border-dark-primary"></div> </div> );
+    }
 
     return (
         <div className="min-h-screen bg-background dark:bg-dark-background text-text dark:text-dark-text transition-colors duration-300 font-sans">
-            {/* Toggles Container */}
-            <div className="absolute top-4 right-4 flex items-center gap-3 z-10">
-                <LanguageToggle
-                    currentLang={currentLanguage}
-                    onChangeLang={changeLanguage}
-                />
-                <ThemeToggle
-                    isDarkMode={isDarkMode}
-                    onToggle={toggleTheme}
-                />
-            </div>
+            {!currentUser ? (
+                <Login onLogin={handleLogin} error={authError} setError={setAuthError} />
+            ) : (
+                <>
+                    <div className="absolute top-4 right-4 flex items-center gap-3 z-10">
+                         <button onClick={() => handleLogout()} title={t('logout_button_title', 'Log out')} className="p-1.5 text-sm font-medium rounded-md transition-colors duration-200 ease-in-out text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary dark:focus:ring-dark-primary focus:ring-offset-background dark:focus:ring-offset-dark-background">
+                             <span className="material-symbols-rounded text-lg leading-none">logout</span>
+                         </button>
+                        <LanguageToggle currentLang={currentLanguage} onChangeLang={changeLanguage} />
+                        <ThemeToggle isDarkMode={isDarkMode} onToggle={toggleTheme} />
+                    </div>
 
-            <main className="max-w-2xl mx-auto p-4 pt-20">
-                 {/* Connection Status / Global Error Display */}
-                 <div className="text-center mb-4 text-xs min-h-[1.2em]"> {/* Ensure space even when empty */}
-                    {error ? (
-                        <span className="text-red-600 dark:text-red-400 font-semibold">{error}</span>
-                    ) : (
-                         <span className={`transition-opacity duration-300 ${isConnected ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400 animate-pulse'}`}>
-                            {isConnected ? t('status_connected') : t('status_disconnected')}
-                        </span>
-                    )}
-                </div>
+                    <main className="max-w-2xl mx-auto p-4 pt-20">
+                        <div className="text-center mb-4 text-xs min-h-[1.2em]">
+                            {error ? ( <span className="text-red-600 dark:text-red-400 font-semibold">{error}</span> )
+                             : authError ? ( <span className="text-red-600 dark:text-red-400 font-semibold">{authError}</span>) // Show auth error here too
+                             : ( <span className={`transition-opacity duration-300 ${isConnected ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400 animate-pulse'}`}> {isConnected ? t('status_connected') : t('status_disconnected')} </span> )
+                            }
+                        </div>
 
+                         <div className="text-center mb-4 text-sm text-gray-500 dark:text-gray-400">
+                             Logged in as: <span className="font-medium text-primary dark:text-dark-primary">{currentUser.username}</span>
+                         </div>
 
-                {/* Main Content Area */}
-                {isLoading ? (
-                     // More prominent loading indicator
-                     <div className="flex justify-center items-center p-10">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary dark:border-dark-primary"></div>
-                          <span className="ml-3 text-gray-500 dark:text-gray-400">{t('loading')}</span>
-                     </div>
-                ) : currentListId && currentList ? (
-                    // Render List Detail View
-                    <ShoppingListDetail
-                        list={currentList}
-                        items={currentListItems}
-                        onBack={handleBackToLists}
-                        onDeleteList={handleDeleteList}
-                        // Pass down handlers for item actions (already done via socket events, but could pass callbacks if preferred)
-                    />
-                ) : !API_URL && !isLoading ? (
-                     // Specific error for missing configuration
-                     <div className="text-center p-10 text-red-600 dark:text-red-400">
-                         Configuration Error: VITE_SERVER_URL is not set. Please check your <code>client/.env</code> file.
-                     </div>
-                ) : (
-                     // Render Lists Overview
-                    <ShoppingLists
-                        lists={lists}
-                        onSelectList={handleSelectList}
-                        onAddList={handleAddList} // Pass down the App's handleAddList
-                    />
-                )}
-            </main>
-
-             {/* Optional Footer */}
-            {/* <footer className="text-center text-xs text-gray-400 dark:text-gray-500 py-4">
-                My Shopping App
-            </footer> */}
+                        {isLoading && !currentListId ? (
+                            <div className="flex justify-center items-center p-10"> <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary dark:border-dark-primary"></div> <span className="ml-3 text-gray-500 dark:text-gray-400">{t('loading')}</span> </div>
+                        ) : currentListId && currentList ? (
+                            <ShoppingListDetail list={currentList} items={currentListItems} onBack={handleBackToLists} onDeleteList={handleDeleteList} />
+                         ) : (
+                            <ShoppingLists lists={lists} onSelectList={handleSelectList} onAddList={handleAddList} />
+                        )}
+                    </main>
+                </>
+            )}
         </div>
     );
 }

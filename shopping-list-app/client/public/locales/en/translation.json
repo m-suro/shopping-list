@@ -25,5 +25,17 @@
   "close_add_item": "Close add item form",
   "no_search_results": "No items match your search.",
   "cancel_button": "Cancel",
-  "create_button": "Create"
+  "create_button": "Create",
+  "login_title": "Login",
+  "username_label": "Username",
+  "pin_label": "4-Digit PIN",
+  "login_button": "Log In",
+  "login_invalid_input": "Please enter username and a 4-digit PIN.",
+  "login_failed_generic": "Login failed. Please try again.",
+  "logout_button_title": "Log out",
+  "session_expired_error": "Session expired, please log in again.",
+  "authentication_error": "Authentication failed. Please log in again.",
+  "connection_lost_error": "Connection lost. Attempting to reconnect...",
+  "connection_failed_error": "Failed to connect: {{message}}. Retrying...",
+  "list_access_denied": "List not found or access denied."
 }

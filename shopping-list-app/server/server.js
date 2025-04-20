@@ -1,253 +1,372 @@
 // server/server.js
-
-// --- Imports ---
+require('dotenv').config(); // Load environment variables first
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const cors = require('cors');
-const dotenv = require('dotenv');
 const mongoose = require('mongoose');
-// *** Ensure this matches your actual model filename ***
-const List = require('./models/ShoppingList'); // Using ShoppingList.js as requested
+const cors = require('cors');
+const cookieParser = require('cookie-parser'); // Import cookie-parser
+const path = require('path'); // Needed for serving client build later
+
+// --- Import Models ---
+const ShoppingList = require('./models/ShoppingList');
 const Item = require('./models/Item');
+const User = require('./models/User'); // Import User model
 
-dotenv.config();
+// --- Import Auth Utilities & Middleware ---
+const { generateToken, setTokenCookie, clearTokenCookie, verifyToken, COOKIE_NAME } = require('./utils/auth');
+const { protect, adminProtect } = require('./middleware/authMiddleware'); // Import middleware
+const bcrypt = require('bcryptjs'); // Import bcrypt
 
-// --- App and Server Setup ---
+// --- Environment Variables ---
+const PORT = process.env.PORT || 3001;
+const MONGODB_URI = process.env.MONGODB_URI;
+const CLIENT_ORIGIN = process.env.CORS_ORIGIN;
+const ADMIN_PIN_HASH = process.env.ADMIN_PIN ? bcrypt.hashSync(process.env.ADMIN_PIN, 10) : null; // Hash admin PIN on startup
+
+// --- Basic Validation ---
+if (!MONGODB_URI) {
+    console.error("FATAL ERROR: MONGODB_URI is not defined in .env file.");
+    process.exit(1);
+}
+if (!CLIENT_ORIGIN) {
+    console.warn("WARN: CORS_ORIGIN is not defined in .env file. Allowing any origin (development only).");
+}
+// JWT_SECRET validation happens in auth.js
+
+// --- Express App Setup ---
 const app = express();
 const server = http.createServer(app);
 
 // --- CORS Configuration ---
-const clientPort = 5173;
-const serverPort = process.env.PORT || 3001; // Use the actual server port
-const codespaceName = process.env.CODESPACE_NAME;
-const codespaceDomain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN;
-
-// Construct potential URLs
-const potentialClientOrigin = codespaceName && codespaceDomain ? `https://${codespaceName}-${clientPort}.${codespaceDomain}` : null;
-const potentialClientOriginApp = codespaceName && codespaceDomain ? `https://${codespaceName}-${clientPort}.app.${codespaceDomain}` : null;
-const actualServerPublicUrl = codespaceName && codespaceDomain ? `https://${codespaceName}-${serverPort}.${codespaceDomain}` : null;
-
-const allowedOrigins = [
-    'http://localhost:5173', // Local dev
-    // Explicitly add the origin the browser reported errors from
-    'https://humble-lamp-g446w4v9v7j4h9p7p-5173.app.github.dev',
-    // Add the other potential variant just in case
-    'https://humble-lamp-g446w4v9v7j4h9p7p-5173.github.dev',
-];
-
-// Add dynamically generated *client* URLs if valid and not already present
-if (potentialClientOrigin && !allowedOrigins.includes(potentialClientOrigin)) {
-    allowedOrigins.push(potentialClientOrigin);
-}
-if (potentialClientOriginApp && !allowedOrigins.includes(potentialClientOriginApp)) {
-    allowedOrigins.push(potentialClientOriginApp);
-}
-
-console.log("--- CORS Configuration ---");
-console.log("Allowed Client Origins:", allowedOrigins);
-console.log("-------------------------");
-
+// Ensure CLIENT_ORIGIN in .env matches your frontend URL exactly
 const corsOptions = {
-    origin: function (origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
-            console.log(`CORS check PASSED for origin: ${origin || 'undefined'}`);
-            callback(null, true);
-        } else {
-            console.error(`CORS check FAILED for origin: ${origin}`);
-            console.error(`-> Origin not in allowed list: [${allowedOrigins.join(', ')}]`);
-            callback(new Error(`Origin ${origin} not allowed by CORS`));
-        }
-    },
-    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
-    credentials: true
+    origin: CLIENT_ORIGIN || '*', // Allow specific origin or all in dev
+    credentials: true, // IMPORTANT: Allow cookies for auth
 };
 
+// --- Middleware ---
+// ** IMPORTANT: Apply CORS *very early*, before other middleware and routes **
 app.use(cors(corsOptions));
+// ** REMOVED: app.options('*', cors(corsOptions)); - Let the main cors middleware handle OPTIONS **
 
-// Initialize Socket.IO Server *with* the same CORS options and custom path
+app.use(express.json()); // For parsing application/json
+app.use(cookieParser()); // For parsing cookies
+
+
+// --- MongoDB Connection ---
+mongoose.connect(MONGODB_URI)
+    .then(() => console.log('MongoDB Connected'))
+    .catch(err => {
+        console.error('MongoDB Connection Error:', err);
+        process.exit(1); // Exit if DB connection fails
+    });
+
+// --- Socket.IO Setup ---
 const io = new Server(server, {
-    cors: corsOptions,
-    // *** ADD CUSTOM PATH ***
-    path: "/customsocketpath/" // Use a distinct path, ensure trailing slash
+    path: "/customsocketpath/", // Keep custom path if needed
+    cors: corsOptions, // Apply CORS options to Socket.IO
 });
 
-// --- Express Middleware ---
-app.use(express.json());
+// --- Socket.IO Authentication Middleware ---
+io.use(async (socket, next) => {
+    // Extract token from handshake cookies
+    const token = socket.handshake.auth.token || socket.handshake.headers.cookie?.split('; ').find(row => row.startsWith(`${COOKIE_NAME}=`))?.split('=')[1];
 
-// --- Database Connection ---
-mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('MongoDB Connected Successfully'))
-    .catch(err => console.error('MongoDB Connection Error:', err));
-
-// --- API Routes ---
-app.get('/api/lists', async (req, res, next) => {
-    try {
-        const lists = await List.find().sort({ createdAt: -1 });
-        res.json(lists);
-    } catch (err) {
-        console.error("Error fetching lists:", err.message); // Log error message
-        next(err);
+    if (!token) {
+        console.log('Socket connection denied: No token provided.');
+        return next(new Error('Authentication error: No token provided'));
     }
-});
-app.get('/api/lists/:listId/items', async (req, res, next) => {
+
     try {
-         if (!mongoose.Types.ObjectId.isValid(req.params.listId)) {
-             return res.status(400).json({ message: 'Invalid List ID format' });
-         }
-        const items = await Item.find({ listId: req.params.listId });
-        res.json(items);
-    } catch (err) {
-        console.error(`Error fetching items for list ${req.params.listId}:`, err.message); // Log error message
-        next(err);
-    }
-});
-
-// --- Socket.IO Event Handlers ---
-io.on('connection', (socket) => {
-    // Use optional chaining in case transport is momentarily undefined during connection setup
-    console.log(`Socket connected: ${socket.id} using transport: ${socket.conn?.transport?.name} on path: ${socket.nsp.name}`);
-
-    socket.on('joinList', (listId) => {
-        if (!listId || typeof listId !== 'string') {
-             console.warn(`Invalid listId received for joinList from ${socket.id}:`, listId);
-             return;
+        const decoded = verifyToken(token);
+        if (!decoded || !decoded.id) {
+            console.log('Socket connection denied: Invalid token.');
+            return next(new Error('Authentication error: Invalid token'));
         }
-        console.log(`Socket ${socket.id} joining list room: ${listId}`);
-        socket.join(listId);
+
+        // Attach user to the socket request object for use in event handlers
+        const user = await User.findById(decoded.id).select('username isAdmin _id').lean(); // Use lean for plain JS object
+        if (!user) {
+             console.log('Socket connection denied: User not found for token.');
+             return next(new Error('Authentication error: User not found'));
+        }
+        socket.request.user = user; // Attach user data
+        // console.log(`Socket authenticated for user: ${user.username} (ID: ${user._id})`); // Reduce logging noise
+        next();
+    } catch (error) {
+        console.error('Socket authentication error:', error);
+        next(new Error('Authentication error: Token verification failed'));
+    }
+});
+
+
+// ========== API Routes ==========
+
+// --- Authentication Routes ---
+// Placed *after* CORS middleware
+app.post('/api/auth/login', async (req, res) => {
+    const { username, pin } = req.body;
+
+    if (!username || !pin) {
+        return res.status(400).json({ message: 'Please provide username and PIN' });
+    }
+
+    try {
+        const user = await User.findOne({ username: username.toLowerCase() });
+
+        if (user && (await user.comparePin(pin))) {
+            // PIN is correct, generate token and set cookie
+            const token = generateToken(user._id, user.username, user.isAdmin);
+            setTokenCookie(res, token);
+
+            // Send back user info (excluding hash)
+            res.json({
+                _id: user._id,
+                username: user.username,
+                isAdmin: user.isAdmin,
+            });
+        } else {
+            res.status(401).json({ message: 'Invalid username or PIN' }); // Generic error
+        }
+    } catch (error) {
+        console.error("Login error:", error);
+        res.status(500).json({ message: 'Server error during login' });
+    }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+    clearTokenCookie(res);
+    res.status(200).json({ message: 'Logged out successfully' });
+});
+
+app.get('/api/auth/session', protect, (req, res) => {
+    // If protect middleware passes, user is authenticated
+    res.json({
+        _id: req.user._id,
+        username: req.user.username,
+        isAdmin: req.user.isAdmin,
+    });
+});
+
+// --- Admin Panel PIN Check ---
+app.post('/api/admin/verify-pin', protect, adminProtect, async (req, res) => {
+    const { pin } = req.body;
+    if (!ADMIN_PIN_HASH) {
+        return res.status(500).json({ message: "Admin PIN not configured on server." });
+    }
+    if (!pin) {
+        return res.status(400).json({ message: "PIN is required." });
+    }
+
+    const isMatch = await bcrypt.compare(pin, ADMIN_PIN_HASH);
+    if (isMatch) {
+        res.status(200).json({ message: "Admin PIN verified." });
+    } else {
+        res.status(401).json({ message: "Invalid Admin PIN." });
+    }
+});
+
+
+// --- Shopping List Routes (Protected and permission-aware) ---
+app.get('/api/lists', protect, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const lists = await ShoppingList.find({
+            $or: [ { owner: userId }, { isPublic: true }, { allowedUsers: userId } ]
+        }).populate('owner', 'username');
+        res.json(lists);
+    } catch (error) {
+        console.error("Error fetching lists:", error);
+        res.status(500).json({ message: 'Error fetching lists' });
+    }
+});
+
+app.get('/api/lists/:listId/items', protect, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const listId = req.params.listId;
+
+        if (!mongoose.Types.ObjectId.isValid(listId)) {
+             return res.status(400).json({ message: 'Invalid list ID format' });
+        }
+
+        const list = await ShoppingList.findOne({
+             _id: listId,
+             $or: [ { owner: userId }, { isPublic: true }, { allowedUsers: userId } ]
+        });
+
+        if (!list) {
+            return res.status(404).json({ message: 'List not found or access denied' });
+        }
+        const items = await Item.find({ listId: listId });
+        res.json(items);
+    } catch (error) {
+        console.error(`Error fetching items for list ${req.params.listId}:`, error);
+        res.status(500).json({ message: 'Error fetching items' });
+    }
+});
+
+
+// ========== Socket.IO Event Handlers (Permission-aware) ==========
+io.on('connection', (socket) => {
+    const user = socket.request.user;
+    if(!user) {
+        console.error("Socket connected without authenticated user!");
+        socket.disconnect(true);
+        return;
+    }
+    console.log(`User connected via socket: ${user.username} (ID: ${user._id}, Socket ID: ${socket.id})`);
+
+    // Helper function to check list access within socket events
+    const checkListAccess = async (listId) => {
+        if (!mongoose.Types.ObjectId.isValid(listId)) return null;
+        return await ShoppingList.findOne({
+            _id: listId,
+            $or: [ { owner: user._id }, { isPublic: true }, { allowedUsers: user._id } ]
+        }).select('_id').lean(); // Use lean for performance
+    };
+
+
+    // --- List Events ---
+    socket.on('addList', async (listName, callback) => {
+        try {
+            if (!listName || typeof listName !== 'string' || listName.trim().length === 0) {
+                 return callback?.({ error: 'List name cannot be empty' });
+            }
+            // Owner is automatically the connected user
+            const newList = new ShoppingList({ name: listName.trim(), owner: user._id });
+            await newList.save();
+            console.log(`List '${newList.name}' added by user ${user.username}`);
+            io.emit('listsUpdated'); // Broadcast (Simplification - ideally target specific users)
+            callback?.({ success: true, list: newList });
+        } catch (error) {
+            console.error(`Error adding list for user ${user.username}:`, error);
+            callback?.({ error: 'Failed to add list: ' + error.message });
+        }
+    });
+
+     socket.on('deleteList', async (listId, callback) => {
+        try {
+             if (!mongoose.Types.ObjectId.isValid(listId)) { return callback?.({ error: 'Invalid list ID' }); }
+             const list = await ShoppingList.findById(listId);
+             if (!list) { return callback?.({ error: 'List not found' }); }
+             // --- Owner Check ---
+             if (!list.owner.equals(user._id)) {
+                 console.warn(`User ${user.username} attempted delete list ${listId} owned by ${list.owner}`);
+                 return callback?.({ error: 'Permission denied' });
+             }
+
+             await Item.deleteMany({ listId: list._id });
+             await ShoppingList.findByIdAndDelete(listId);
+             console.log(`List '${list.name}' deleted by owner ${user.username}`);
+             io.emit('listDeleted', listId); // Broadcast
+             callback?.({ success: true });
+        } catch (error) {
+             console.error(`Error deleting list ${listId} for user ${user.username}:`, error);
+             callback?.({ error: 'Failed to delete list: ' + error.message });
+        }
+     });
+
+    // --- Item Events ---
+    socket.on('addItem', async ({ listId, itemName }, callback) => {
+         try {
+             if (!itemName || typeof itemName !== 'string' || itemName.trim().length === 0) { return callback?.({ error: 'Item name empty' }); }
+             const list = await checkListAccess(listId); // Use helper
+             if (!list) { return callback?.({ error: 'List not found or access denied' }); }
+
+             const newItem = new Item({ name: itemName.trim(), listId: listId });
+             await newItem.save();
+             console.log(`Item '${newItem.name}' added to list ${listId} by ${user.username}`);
+             io.to(listId).emit('itemAdded', { ...newItem.toObject(), listId: listId });
+             callback?.({ success: true, item: newItem });
+         } catch (error) {
+             console.error(`Error adding item to list ${listId} by ${user.username}:`, error);
+             callback?.({ error: 'Failed to add item: ' + error.message });
+         }
+    });
+
+     socket.on('toggleItem', async ({ listId, itemId }, callback) => {
+         try {
+             if (!mongoose.Types.ObjectId.isValid(itemId)) { return callback?.({ error: 'Invalid item ID' }); }
+             const list = await checkListAccess(listId); // Use helper
+             if (!list) { return callback?.({ error: 'List not found or access denied' }); }
+
+             const item = await Item.findById(itemId);
+             if (!item || !item.listId.equals(listId)) { return callback?.({ error: 'Item not found in this list' }); }
+
+             item.completed = !item.completed;
+             await item.save();
+             console.log(`Item '${item.name}' toggled in list ${listId} by ${user.username}`);
+             io.to(listId).emit('itemUpdated', { ...item.toObject(), listId: listId });
+             callback?.({ success: true, item: item });
+         } catch (error) {
+             console.error(`Error toggling item ${itemId} by ${user.username}:`, error);
+             callback?.({ error: 'Failed to toggle item: ' + error.message });
+         }
+     });
+
+     socket.on('deleteItem', async ({ listId, itemId }, callback) => {
+         try {
+             if (!mongoose.Types.ObjectId.isValid(itemId)) { return callback?.({ error: 'Invalid item ID' }); }
+             const list = await checkListAccess(listId); // Use helper
+             if (!list) { return callback?.({ error: 'List not found or access denied' }); }
+
+             const item = await Item.findOneAndDelete({ _id: itemId, listId: listId });
+             if (!item) { return callback?.({ error: 'Item not found or already deleted' }); }
+
+             console.log(`Item '${item.name}' deleted from list ${listId} by ${user.username}`);
+             io.to(listId).emit('itemDeleted', itemId);
+             callback?.({ success: true, itemId: itemId });
+         } catch (error) {
+             console.error(`Error deleting item ${itemId} by ${user.username}:`, error);
+             callback?.({ error: 'Failed to delete item: ' + error.message });
+         }
+     });
+
+
+    // --- Room Management ---
+    socket.on('joinList', async (listId) => {
+         const list = await checkListAccess(listId); // Verify access before joining
+         if(list) {
+            console.log(`User ${user.username} joining room for list: ${listId}`);
+            socket.join(listId);
+         } else {
+             console.warn(`User ${user.username} denied joining room for list ${listId} (no access).`)
+         }
     });
 
     socket.on('leaveList', (listId) => {
-         if (!listId || typeof listId !== 'string') {
-             console.warn(`Invalid listId received for leaveList from ${socket.id}:`, listId);
-             return;
-         }
-        console.log(`Socket ${socket.id} leaving list room: ${listId}`);
+        // No need to check permissions for leaving
+        console.log(`User ${user.username} leaving room for list: ${listId}`);
         socket.leave(listId);
     });
 
-    socket.on('addList', async (listName, callback) => {
-        try {
-            const defaultName = 'New Shopping List';
-            const nameToUse = (typeof listName === 'string' && listName.trim()) ? listName.trim() : defaultName;
-            if (nameToUse.length > 100) { if (callback) callback({ error: 'List name too long' }); return; }
-            const newList = new List({ name: nameToUse });
-            const savedList = await newList.save();
-            console.log("List added:", savedList.name, `(ID: ${savedList._id})`);
-            io.emit('listsUpdated');
-            if (callback) callback({ success: true, list: savedList });
-        } catch (err) {
-            console.error("Error in addList handler:", err.message); // Log error message
-            if (callback) callback({ error: 'Server error: Failed to add list' });
-        }
-    });
 
-    socket.on('deleteList', async (listId, callback) => {
-        try {
-            if (!mongoose.Types.ObjectId.isValid(listId)) { if (callback) callback({ error: 'Invalid List ID' }); return; }
-            const listDeletionResult = await List.findByIdAndDelete(listId);
-            if (!listDeletionResult) {
-                 console.log(`List ${listId} not found for deletion.`);
-                 if (callback) callback({ error: 'List not found' });
-                 io.emit('listsUpdated'); return;
-            }
-            const itemDeletionResult = await Item.deleteMany({ listId: listId });
-            console.log(`List ${listId} deleted. Items deleted: ${itemDeletionResult.deletedCount}`);
-            io.emit('listDeleted', listId);
-            io.emit('listsUpdated');
-            if (callback) callback({ success: true });
-        } catch (err) {
-            console.error(`Error deleting list ${listId}:`, err.message); // Log error message
-            if (callback) callback({ error: 'Server error: Failed to delete list' });
-        }
-    });
-
-    socket.on('addItem', async ({ listId, itemName }, callback) => {
-        try {
-             if (!mongoose.Types.ObjectId.isValid(listId) || typeof itemName !== 'string' || !itemName.trim()) { if (callback) callback({ error: 'Invalid input for adding item' }); return; }
-             const trimmedName = itemName.trim();
-             if (trimmedName.length > 200) { if (callback) callback({ error: 'Item name too long' }); return; }
-             const listExists = await List.exists({ _id: listId });
-             if (!listExists) { if (callback) callback({ error: 'List does not exist' }); return; }
-            const newItem = new Item({ listId: listId, name: trimmedName });
-            const savedItem = await newItem.save();
-            console.log(`Item added to list ${listId}:`, savedItem.name, `(ID: ${savedItem._id})`);
-            io.to(listId).emit('itemAdded', savedItem);
-            if (callback) callback({ success: true, item: savedItem });
-        } catch (err) {
-            console.error(`Error adding item to list ${listId}:`, err.message); // Log error message
-            if (callback) callback({ error: 'Server error: Failed to add item' });
-        }
-    });
-
-    socket.on('toggleItem', async ({ listId, itemId }, callback) => {
-        try {
-             if (!mongoose.Types.ObjectId.isValid(listId) || !mongoose.Types.ObjectId.isValid(itemId)) { if (callback) callback({ error: 'Invalid ID for toggling item' }); return; }
-            const item = await Item.findOne({ _id: itemId, listId: listId });
-            if (!item) { if (callback) callback({ error: 'Item not found in the specified list' }); return; }
-            item.completed = !item.completed;
-            const updatedItem = await item.save();
-            console.log(`Item ${itemId} toggled in list ${listId}. Completed: ${updatedItem.completed}`);
-            io.to(listId).emit('itemUpdated', updatedItem);
-            if (callback) callback({ success: true, item: updatedItem });
-        } catch (err) {
-            console.error(`Error toggling item ${itemId} in list ${listId}:`, err.message); // Log error message
-            if (callback) callback({ error: 'Server error: Failed to toggle item' });
-        }
-    });
-
-    socket.on('deleteItem', async ({ listId, itemId }, callback) => {
-        try {
-            if (!mongoose.Types.ObjectId.isValid(listId) || !mongoose.Types.ObjectId.isValid(itemId)) { if (callback) callback({ error: 'Invalid ID for deleting item' }); return; }
-            const item = await Item.findOneAndDelete({ _id: itemId, listId: listId });
-            if (!item) {
-                console.log(`Item ${itemId} not found for deletion in list ${listId}.`);
-                if (callback) callback({ success: true, message: 'Item already deleted or not found' });
-                return;
-            }
-            console.log(`Item ${itemId} deleted from list ${listId}.`);
-            io.to(listId).emit('itemDeleted', itemId);
-            if (callback) callback({ success: true });
-        } catch (err) {
-            console.error(`Error deleting item ${itemId} from list ${listId}:`, err.message); // Log error message
-            if (callback) callback({ error: 'Server error: Failed to delete item' });
-        }
-    });
-
+    // --- Disconnect ---
     socket.on('disconnect', (reason) => {
-        console.log(`Socket disconnected: ${socket.id}. Reason: ${reason}`);
-    });
-
-    socket.on('error', (error) => {
-        console.error(`Socket Error for ${socket.id}:`, error);
+        console.log(`User disconnected: ${user.username} (Socket ID: ${socket.id}). Reason: ${reason}`);
     });
 });
 
-// --- Server Listening ---
-const PORT = process.env.PORT || 3001;
-const HOST = '0.0.0.0';
 
-server.listen(PORT, HOST, () => {
-    console.log(`🚀 Server listening on http://${HOST}:${PORT}`);
-    const connectUrl = actualServerPublicUrl || process.env.VITE_SERVER_URL || `http://localhost:${PORT}`;
-    console.log(`   Client should connect API/Socket to: ${connectUrl}`);
-    console.log(`   Accepting connections from origins: ${allowedOrigins.join(', ')}`);
-});
+// --- Serve Frontend ---
+if (process.env.NODE_ENV === 'production') {
+     const clientBuildPath = path.resolve(__dirname, '../client/dist');
+     console.log(`Serving static files from: ${clientBuildPath}`);
+     app.use(express.static(clientBuildPath));
+     app.get('*', (req, res) => {
+         res.sendFile(path.resolve(clientBuildPath, 'index.html'));
+     });
+} else {
+     app.get('/', (req, res) => { res.send("API is running in development mode..."); });
+}
 
-// --- Express Error Handling Middleware ---
-app.use((err, req, res, next) => {
-    console.error("Express Error Handler Caught:", err.stack || err.message || err);
-    if (res.headersSent) { return next(err); }
-    res.status(err.status || 500).json({
-        message: err.message || 'An unexpected server error occurred.',
-        ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
-    });
-});
-
-// --- Process-wide Error Handlers ---
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+// --- Start Server ---
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`Client expected at: ${CLIENT_ORIGIN || 'http://localhost:5173'}`);
+     if(!ADMIN_PIN_HASH) {
+          console.warn('\x1b[33m%s\x1b[0m', 'WARN: ADMIN_PIN is not set in .env. Admin panel verification will not work.');
+     }
 });
