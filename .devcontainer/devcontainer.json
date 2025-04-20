@@ -4,7 +4,7 @@
       "repositories": {
         "m-suro/shopping-list": {
           "permissions": {
-            "contents": "read",
+            "contents": "write",
             "packages": "read"
           }
         }
