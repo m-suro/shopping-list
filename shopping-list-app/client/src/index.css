@@ -1,0 +1,32 @@
+/* client/src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Apply base background and text colors for light/dark modes */
+body {
+  @apply bg-background text-text transition-colors duration-300; /* Light theme default */
+}
+
+.dark body {
+   @apply bg-dark-background text-dark-text; /* Dark theme overrides */
+}
+
+/* Simple focus ring styling */
+*:focus {
+    @apply outline-none ring-2 ring-offset-2 ring-primary dark:ring-dark-primary ring-offset-background dark:ring-offset-dark-background;
+}
+
+/* Custom scrollbar example (optional) */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-secondary/30 dark:bg-dark-secondary/30;
+}
+::-webkit-scrollbar-thumb {
+   @apply bg-primary dark:bg-dark-primary rounded;
+}
+::-webkit-scrollbar-thumb:hover {
+   @apply bg-accent dark:bg-dark-accent;
+}
