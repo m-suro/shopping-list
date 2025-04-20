@@ -3,7 +3,7 @@
   "status_connected": "Połączono",
   "status_disconnected": "Rozłączono",
   "loading": "Ładowanie...",
-  "back_to_lists": "← Wróć do List",
+  "back_to_lists": "Wróć do List",
   "delete_list": "Usuń Listę",
   "delete_list_confirm": "Czy na pewno chcesz usunąć listę \"{{listName}}\" i wszystkie jej elementy?",
   "empty_list_message": "Ta lista jest pusta. Dodaj elementy poniżej!",
