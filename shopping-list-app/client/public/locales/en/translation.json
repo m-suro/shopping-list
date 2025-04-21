@@ -120,5 +120,6 @@
   "item_comment_placeholder": "Add a comment...",
   "save_button": "Save",
   "item_comment_collapse": "Collapse",
-  "item_comment_expand": "Expand"
+  "item_comment_expand": "Expand",
+  "log_viewer_title": "Log Viewer"
 }

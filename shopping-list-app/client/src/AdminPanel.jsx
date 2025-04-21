@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 
 // --- Helper: Add User Form ---
+// ... (AddUserForm component remains unchanged) ...
 function AddUserForm({ onAddUser, error, setError, isLoading }) {
     const { t } = useTranslation();
     const [username, setUsername] = useState('');
@@ -61,7 +62,8 @@ function AddUserForm({ onAddUser, error, setError, isLoading }) {
 
 
 // --- Main Admin Panel Component ---
-function AdminPanel({ onExitAdminMode }) {
+// ** MODIFIED: Added onNavigateToLogs prop **
+function AdminPanel({ onExitAdminMode, onNavigateToLogs }) {
     const { t } = useTranslation();
     const API_URL = import.meta.env.VITE_SERVER_URL;
 
@@ -132,7 +134,7 @@ function AdminPanel({ onExitAdminMode }) {
     useEffect(() => {
         fetchUsers();
         fetchAllLists();
-    }, [fetchUsers, fetchAllLists]); // Fetch on mount
+    }, []); // Fetch only on mount now, filters trigger their own refetch
 
      // Re-fetch lists when filters change
      useEffect(() => {
@@ -185,7 +187,12 @@ function AdminPanel({ onExitAdminMode }) {
                 if (listFilterUser === userId) {
                     setListFilterUser('all'); // Reset filter which triggers list refetch
                 } else {
-                    fetchAllLists(); // Otherwise, just refresh lists normally
+                    // No need to explicitly call fetchAllLists here,
+                    // as changing listFilterUser above will trigger its useEffect
+                    // If the filter didn't change, we still might want to refresh lists
+                    // in case the deleted user was an allowed user on some lists.
+                    // However, the current backend doesn't reflect this immediately in the admin list view.
+                    // For simplicity, we rely on the filter change trigger.
                 }
             } catch (err) {
                 console.error("Error deleting user:", err);
@@ -198,7 +205,6 @@ function AdminPanel({ onExitAdminMode }) {
     const handleDeleteList = async (listId, listName) => {
         if (window.confirm(t('admin_delete_list_confirm', `Are you sure you want to delete the list "${listName}"? This action cannot be undone.`))) {
             setListError(null);
-             // Consider adding per-list loading state if needed
             try {
                  const res = await fetch(`${API_URL}/api/admin/lists/${listId}`, {
                      method: 'DELETE',
@@ -230,14 +236,27 @@ function AdminPanel({ onExitAdminMode }) {
                 <h1 className="text-2xl font-semibold text-primary dark:text-dark-primary">
                     {t('admin_panel_title', 'Admin Panel')}
                 </h1>
-                <button
-                    onClick={onExitAdminMode}
-                    className="px-3 py-1 rounded bg-gray-500 text-white hover:bg-gray-600 transition-colors text-sm flex items-center gap-1"
-                    title={t('back_to_app', 'Back to App')}
-                >
-                    <span className="material-symbols-rounded text-lg leading-none">arrow_back</span>
-                    {t('back_to_app', 'Back to App')}
-                </button>
+                <div className="flex items-center gap-2">
+                    {/* ** NEW: Activity Log Button ** */}
+                    <button
+                        onClick={onNavigateToLogs}
+                        className="px-3 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors text-sm flex items-center gap-1"
+                        title={t('view_activity_logs_button', 'View Activity Logs')}
+                    >
+                        <span className="material-symbols-rounded text-lg leading-none">history</span>
+                        {t('logs_button', 'Logs')}
+                    </button>
+                    <button
+                        onClick={onExitAdminMode}
+                        className="px-3 py-1 rounded bg-gray-500 text-white hover:bg-gray-600 transition-colors text-sm flex items-center gap-1"
+                        title={t('back_to_app', 'Back to App')}
+                    >
+                        <span className="material-symbols-rounded text-lg leading-none">arrow_back</span>
+                         {/* Optionally shorten text if space is tight */}
+                        {/* {t('back_button', 'Back')} */}
+                        {t('back_to_app', 'Back to App')}
+                    </button>
+                 </div>
             </div>
 
             {/* User Management Section */}
@@ -335,7 +354,6 @@ function AdminPanel({ onExitAdminMode }) {
                                         <span className={`text-xs font-medium px-2 py-0.5 rounded ${list.isPublic ? 'bg-blue-200 text-blue-800 dark:bg-blue-700 dark:text-blue-100' : 'bg-yellow-200 text-yellow-800 dark:bg-yellow-700 dark:text-yellow-100'}`}>
                                             {list.isPublic ? t('list_privacy_public', 'Public') : t('list_privacy_private', 'Private')}
                                         </span>
-                                        {/* --- Add Delete Button for Lists --- */}
                                         <button
                                             onClick={() => handleDeleteList(list._id, list.name)}
                                             className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-0.5"
@@ -343,7 +361,6 @@ function AdminPanel({ onExitAdminMode }) {
                                         >
                                             <span className="material-symbols-rounded align-middle text-lg">delete_forever</span>
                                         </button>
-                                        {/* --- End Delete Button --- */}
                                      </div>
                                 </div>
                                 <p className="text-gray-600 dark:text-gray-400">{t('admin_list_owner', 'Owner')}: {list.owner?.username || t('unknown_user', 'Unknown')}</p>

@@ -2,6 +2,7 @@
 // Description: Component to display the details of a single shopping list,
 // including its items, header, and controls for adding, searching, and managing items.
 // Handles user interactions within the list context and delegates actions (online/offline).
+// ** MODIFIED: Fixed underline style on back button and removed confusing offline icon from privacy toggle. **
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
@@ -22,60 +23,31 @@ function AddItemInlineForm({ listId, onAddItem, onCancel, isOnline, queueItemAct
 
 
 // --- ShoppingListItem ---
-// ** MODIFIED ** Added inline delete confirmation
+// No changes needed here for the reported issues
 function ShoppingListItem({ item, listId: parentListId, onToggle, onDelete, onUpdateComment, isOnline, queueItemAction }) {
     const { t } = useTranslation();
     const listItemRef = useRef(null);
     const commentInputRef = useRef(null);
     const wasTapHandled = useRef(false);
-    const [buttonContainerRef] = useAutoAnimate({ duration: 150 }); // For animating the confirm button
+    const [buttonContainerRef] = useAutoAnimate({ duration: 150 });
 
     const [isExpanded, setIsExpanded] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editedComment, setEditedComment] = useState(item.comment || '');
-    const [isConfirmingDelete, setIsConfirmingDelete] = useState(false); // State for delete confirmation
+    const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
     const effectiveItemId = item._id || item.tempId;
 
     useEffect(() => { if (!isEditing) { setEditedComment(item.comment || ''); } }, [item.comment, isEditing]);
 
-    // --- Action Handlers ---
     const handleToggleAction = useCallback((itemId) => { if (!parentListId || !itemId) return; if (isOnline) { onToggle(itemId); } else { const action = { type: 'toggleItem', payload: { listId: parentListId, itemId: itemId } }; queueItemAction(action); } }, [isOnline, onToggle, queueItemAction, parentListId]);
-
-    // Renamed original delete handler to perform the action
-    const performDeleteAction = useCallback((itemId) => {
-        if (!item || !itemId || !parentListId) return;
-        if (isOnline) {
-            onDelete(itemId);
-        } else {
-            const action = { type: 'deleteItem', payload: { listId: parentListId, itemId: itemId } };
-            queueItemAction(action);
-        }
-        setIsConfirmingDelete(false); // Reset state after action
-    }, [isOnline, onDelete, queueItemAction, item, parentListId]);
-
-    // New handler for the initial delete button click
-    const handleDeleteClick = () => {
-        setIsConfirmingDelete(true);
-        // Optional: Hide comment editor if open when delete is initiated
-        // if (isEditing) {
-        //     setIsEditing(false);
-        //     setEditedComment(item.comment || '');
-        // }
-    };
-
-    // Handler to cancel the delete confirmation
-    const handleCancelDelete = () => {
-        setIsConfirmingDelete(false);
-    };
-
-    // --- Comment Handlers ---
+    const performDeleteAction = useCallback((itemId) => { if (!item || !itemId || !parentListId) return; if (isOnline) { onDelete(itemId); } else { const action = { type: 'deleteItem', payload: { listId: parentListId, itemId: itemId } }; queueItemAction(action); } setIsConfirmingDelete(false); }, [isOnline, onDelete, queueItemAction, item, parentListId]);
+    const handleDeleteClick = () => { setIsConfirmingDelete(true); };
+    const handleCancelDelete = () => { setIsConfirmingDelete(false); };
     const handleEditComment = () => { if (isEditing) return; setEditedComment(item.comment || ''); setIsEditing(true); setIsExpanded(true); setTimeout(() => commentInputRef.current?.focus(), 0); };
     const handleCancelEdit = () => { setIsEditing(false); setEditedComment(item.comment || ''); };
-    const handleSaveComment = (itemIdToSave, listIdToSave) => { console.log("[ShoppingListItem] handleSaveComment called."); if (!itemIdToSave || !listIdToSave) { console.error(`[ShoppingListItem] Save aborted: Missing ID. ItemID: ${itemIdToSave}, ListID: ${listIdToSave}`); setIsEditing(false); return; } const trimmedComment = editedComment.trim(); const originalComment = (item.comment || '').trim(); console.log(`[ShoppingListItem] Trying to save. Item ID: ${itemIdToSave}, List ID: ${listIdToSave}`); console.log(`[ShoppingListItem] Original Comment: "${originalComment}", Edited Comment: "${trimmedComment}"`); if (trimmedComment !== originalComment) { console.log("[ShoppingListItem] Comment changed, proceeding with update."); if (typeof onUpdateComment === 'function') { console.log("[ShoppingListItem] Calling onUpdateComment prop..."); onUpdateComment(itemIdToSave, trimmedComment); } else { console.error("[ShoppingListItem] ERROR: onUpdateComment prop is not a function!", onUpdateComment); } } else { console.log("[ShoppingListItem] Comment not changed, skipping update."); } setIsEditing(false); };
+    const handleSaveComment = (itemIdToSave, listIdToSave) => { if (!itemIdToSave || !listIdToSave) { console.error(`[ShoppingListItem] Save aborted: Missing ID. ItemID: ${itemIdToSave}, ListID: ${listIdToSave}`); setIsEditing(false); return; } const trimmedComment = editedComment.trim(); const originalComment = (item.comment || '').trim(); if (trimmedComment !== originalComment) { if (typeof onUpdateComment === 'function') { onUpdateComment(itemIdToSave, trimmedComment); } else { console.error("[ShoppingListItem] ERROR: onUpdateComment prop is not a function!", onUpdateComment); } } setIsEditing(false); };
     const handleCommentKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveComment(effectiveItemId, parentListId); } else if (e.key === 'Escape') { handleCancelEdit(); } };
-
-    // --- Swipe/Tap Handlers ---
     const handleTap = useCallback(() => { if(!effectiveItemId) return; wasTapHandled.current = true; handleToggleAction(effectiveItemId); setTimeout(() => { wasTapHandled.current = false; }, 100); }, [handleToggleAction, effectiveItemId]);
     useSwipe(listItemRef, { onSwipeRight: () => effectiveItemId && handleToggleAction(effectiveItemId), onTap: handleTap, threshold: 60 });
     const handleInputChange = useCallback(() => { if(!effectiveItemId) return; if (wasTapHandled.current) { wasTapHandled.current = false; return; } handleToggleAction(effectiveItemId); }, [handleToggleAction, effectiveItemId]);
@@ -93,56 +65,12 @@ function ShoppingListItem({ item, listId: parentListId, onToggle, onDelete, onUp
                         <span className={`flex-shrink-0 w-5 h-5 border-2 rounded transition-colors duration-200 ease-in-out flex items-center justify-center ${item.completed ? 'bg-primary dark:bg-dark-primary border-primary dark:border-dark-primary' : 'bg-white dark:bg-gray-700 border-primary/50 dark:border-dark-primary/50 peer-focus:ring-2 peer-focus:ring-offset-1 peer-focus:ring-offset-transparent peer-focus:ring-accent dark:peer-focus:ring-dark-accent'}`} aria-hidden="true"> {item.completed && (<svg className="w-3 h-3 text-white dark:text-dark-background" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>)} </span>
                         <span className={`flex-grow transition-colors break-words ${item.completed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-text dark:text-dark-text'}`}> {item.name} {item.isOffline && ( <span className="material-symbols-rounded text-xs text-amber-500 ml-1.5 align-middle" title={t('offline_change_tooltip')}>cloud_off</span> )} </span>
                     </label>
-
-                    {/* Action Buttons Area */}
                     <div ref={buttonContainerRef} className="flex items-center flex-shrink-0 gap-1.5">
-                        {/* Comment Button (visible unless confirming delete) */}
-                        {!isConfirmingDelete && (
-                            <button
-                                onClick={handleEditComment}
-                                className="p-1.5 rounded-md bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors flex items-center justify-center aspect-square"
-                                title={hasComment ? t('item_comment_edit_tooltip', 'Edit comment') : t('item_comment_add_tooltip', 'Add comment')}
-                            >
-                                <ChatBubbleLeftEllipsisIcon className="h-5 w-5" />
-                            </button>
-                        )}
-
-                        {/* Delete Confirmation Section */}
-                        {isConfirmingDelete ? (
-                            <>
-                                {/* Cancel Button (looks like the original delete icon) */}
-                                <button
-                                    onClick={handleCancelDelete}
-                                    className="p-1.5 rounded-md bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors flex items-center justify-center aspect-square"
-                                    aria-label={t('cancel_button')}
-                                    title={t('cancel_button')}
-                                >
-                                     <XMarkIcon className="h-5 w-5" />
-                                </button>
-                                {/* Confirm Button */}
-                                <button
-                                    onClick={() => performDeleteAction(effectiveItemId)}
-                                    className="px-3 py-1.5 h-[34px] text-xs rounded-md bg-red-600 dark:bg-red-700 text-white hover:bg-red-700 dark:hover:bg-red-600 transition-colors flex items-center justify-center"
-                                    title={t('confirm_button')}
-                                >
-                                    {t('confirm_button')}
-                                </button>
-                            </>
-                        ) : (
-                            /* Original Delete Button */
-                            <button
-                                onClick={handleDeleteClick} // Changed to initiate confirmation
-                                className="p-1.5 rounded-md bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 hover:text-red-700 dark:hover:text-red-200 transition-colors flex items-center justify-center aspect-square"
-                                aria-label={t('delete_item_label', { itemName: item.name })}
-                                title={t('delete_button')}
-                            >
-                                <span className="material-symbols-rounded text-xl leading-none flex items-center justify-center">delete</span>
-                            </button>
-                        )}
+                        {!isConfirmingDelete && ( <button onClick={handleEditComment} className="p-1.5 rounded-md bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors flex items-center justify-center aspect-square" title={hasComment ? t('item_comment_edit_tooltip', 'Edit comment') : t('item_comment_add_tooltip', 'Add comment')}> <ChatBubbleLeftEllipsisIcon className="h-5 w-5" /> </button> )}
+                        {isConfirmingDelete ? ( <> <button onClick={handleCancelDelete} className="p-1.5 rounded-md bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors flex items-center justify-center aspect-square" aria-label={t('cancel_button')} title={t('cancel_button')}> <XMarkIcon className="h-5 w-5" /> </button> <button onClick={() => performDeleteAction(effectiveItemId)} className="px-3 py-1.5 h-[34px] text-xs rounded-md bg-red-600 dark:bg-red-700 text-white hover:bg-red-700 dark:hover:bg-red-600 transition-colors flex items-center justify-center" title={t('confirm_button')}> {t('confirm_button')} </button> </> ) : ( <button onClick={handleDeleteClick} className="p-1.5 rounded-md bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 hover:text-red-700 dark:hover:text-red-200 transition-colors flex items-center justify-center aspect-square" aria-label={t('delete_item_label', { itemName: item.name })} title={t('delete_button')}> <span className="material-symbols-rounded text-xl leading-none flex items-center justify-center">delete</span> </button> )}
                     </div>
                 </div>
-                {/* --- Comment Section --- */}
-                {showCommentSection && ( <div className={`pl-10 pr-3 pb-2 transition-all duration-300 ease-in-out ${item.completed ? 'opacity-70' : ''}`}> {isEditing ? ( <div className="space-y-2"> <textarea ref={commentInputRef} value={editedComment} onChange={(e) => setEditedComment(e.target.value)} onKeyDown={handleCommentKeyDown} placeholder={t('item_comment_placeholder', 'Add a comment...')} className="w-full p-1.5 border rounded bg-white dark:bg-gray-600 text-text dark:text-dark-text border-primary/50 dark:border-dark-primary/50 focus:ring-1 focus:ring-accent dark:focus:ring-dark-accent text-sm resize-y min-h-[40px]" rows={2} maxLength={500} /> <div className="flex justify-end gap-2"> <button onClick={handleCancelEdit} className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" title={t('cancel_button')}> <XMarkIcon className="h-5 w-5" /> </button> <button onClick={() => { console.log("[ShoppingListItem] Save button clicked."); handleSaveComment(effectiveItemId, parentListId); }} className="p-1 text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300" title={t('save_button')}> <CheckIcon className="h-5 w-5" /> </button> </div> </div> ) : ( <div className="flex items-start justify-between gap-2 group/comment"> <div className={`flex-grow text-xs text-gray-600 dark:text-gray-400 py-1 cursor-pointer min-h-[24px] break-words ${isExpanded ? 'whitespace-pre-wrap' : 'line-clamp-1'}`} onClick={handleEditComment} title={t('item_comment_edit_tooltip', 'Click to edit comment')} > {item.comment} </div> <button onClick={() => setIsExpanded(!isExpanded)} className="ml-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex-shrink-0 opacity-0 group-hover/comment:opacity-100 focus:opacity-100 transition-opacity duration-150" aria-expanded={isExpanded} title={isExpanded ? t('item_comment_collapse', 'Collapse') : t('item_comment_expand', 'Expand')} > <span className={`material-symbols-rounded text-lg transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>expand_more</span> </button> </div> )} </div> )}
+                {showCommentSection && ( <div className={`pl-10 pr-3 pb-2 transition-all duration-300 ease-in-out ${item.completed ? 'opacity-70' : ''}`}> {isEditing ? ( <div className="space-y-2"> <textarea ref={commentInputRef} value={editedComment} onChange={(e) => setEditedComment(e.target.value)} onKeyDown={handleCommentKeyDown} placeholder={t('item_comment_placeholder', 'Add a comment...')} className="w-full p-1.5 border rounded bg-white dark:bg-gray-600 text-text dark:text-dark-text border-primary/50 dark:border-dark-primary/50 focus:ring-1 focus:ring-accent dark:focus:ring-dark-accent text-sm resize-y min-h-[40px]" rows={2} maxLength={500} /> <div className="flex justify-end gap-2"> <button onClick={handleCancelEdit} className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" title={t('cancel_button')}> <XMarkIcon className="h-5 w-5" /> </button> <button onClick={() => { handleSaveComment(effectiveItemId, parentListId); }} className="p-1 text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300" title={t('save_button')}> <CheckIcon className="h-5 w-5" /> </button> </div> </div> ) : ( <div className="flex items-start justify-between gap-2 group/comment"> <div className={`flex-grow text-xs text-gray-600 dark:text-gray-400 py-1 cursor-pointer min-h-[24px] break-words ${isExpanded ? 'whitespace-pre-wrap' : 'line-clamp-1'}`} onClick={handleEditComment} title={t('item_comment_edit_tooltip', 'Click to edit comment')} > {item.comment} </div> <button onClick={() => setIsExpanded(!isExpanded)} className="ml-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex-shrink-0 opacity-0 group-hover/comment:opacity-100 focus:opacity-100 transition-opacity duration-150" aria-expanded={isExpanded} title={isExpanded ? t('item_comment_collapse', 'Collapse') : t('item_comment_expand', 'Expand')} > <span className={`material-symbols-rounded text-lg transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>expand_more</span> </button> </div> )} </div> )}
             </div>
         </li>
     );
@@ -150,7 +78,6 @@ function ShoppingListItem({ item, listId: parentListId, onToggle, onDelete, onUp
 
 
 // --- ShoppingListDetail ---
-// No changes needed in the ShoppingListDetail component itself for this feature
 function ShoppingListDetail({ list, items = [], currentUser, isOnline, queueItemAction, onBack, onDeleteList, onError, onTogglePrivacy, onUpdateComment }) {
     const { t } = useTranslation();
     const listId = list?._id || list?.tempId;
@@ -178,10 +105,28 @@ function ShoppingListDetail({ list, items = [], currentUser, isOnline, queueItem
 
     return (
         <div className="p-4 bg-white dark:bg-gray-800 shadow-md rounded-lg max-w-2xl mx-auto">
-             <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-200 dark:border-gray-700 gap-2"> <button onClick={onBack} className="text-primary dark:text-dark-primary hover:underline flex items-center gap-1 text-sm sm:text-base flex-shrink-0"><span className="material-symbols-rounded text-lg leading-none">arrow_back</span>{t('back_to_lists')}</button> <h2 className="text-xl sm:text-2xl font-semibold text-primary dark:text-dark-primary text-center flex-grow mx-2 truncate" title={list.name}>{list.name}</h2> {isOwner && ( <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0"> <button onClick={handleOpenShareModal} disabled={!!list.tempId || !isOnline} className={`p-1.5 sm:p-2 rounded-full transition-colors text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed`} title={list.tempId ? t('share_unavailable_offline_list') : t('share_list_button_title')}><span className="material-symbols-rounded">share</span></button> <button onClick={confirmDeleteList} className="p-1.5 sm:p-2 rounded-full transition-colors text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50" title={t('delete_list')}><span className="material-symbols-rounded">delete_forever</span></button> </div> )} {!isOwner && <div className="w-12 sm:w-16 flex-shrink-0"></div>} </div>
+             <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-200 dark:border-gray-700 gap-2">
+                 {/* ** MODIFIED: Back Button - Apply underline to text span only ** */}
+                 <button onClick={onBack} className="text-primary dark:text-dark-primary flex items-center gap-1 text-sm sm:text-base flex-shrink-0 group">
+                      <span className="material-symbols-rounded text-lg leading-none">arrow_back</span>
+                      <span className="group-hover:underline">{t('back_to_lists')}</span>
+                 </button>
+                 <h2 className="text-xl sm:text-2xl font-semibold text-primary dark:text-dark-primary text-center flex-grow mx-2 truncate" title={list.name}>{list.name}</h2>
+                 {isOwner && ( <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0"> <button onClick={handleOpenShareModal} disabled={!!list.tempId || !isOnline} className={`p-1.5 sm:p-2 rounded-full transition-colors text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed`} title={list.tempId ? t('share_unavailable_offline_list') : t('share_list_button_title')}><span className="material-symbols-rounded">share</span></button> <button onClick={confirmDeleteList} className="p-1.5 sm:p-2 rounded-full transition-colors text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50" title={t('delete_list')}><span className="material-symbols-rounded">delete_forever</span></button> </div> )}
+                 {!isOwner && <div className="w-12 sm:w-16 flex-shrink-0"></div>}
+             </div>
              <div ref={controlsAnimationParent} className="flex items-center gap-2 my-3 py-2 border-b border-t border-gray-200 dark:border-gray-700 min-h-[56px]"> <button onClick={() => toggleControl('search')} className={`p-2 rounded-full transition-colors flex-shrink-0 flex items-center justify-center ${activeControl === 'search' ? 'text-accent dark:text-dark-accent bg-accent/10 dark:bg-dark-accent/20' : 'text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-dark-primary'}`} aria-label={t(activeControl === 'search' ? 'close_search' : 'open_search')} aria-expanded={activeControl === 'search'}><span className="material-symbols-rounded">search</span></button> <button onClick={() => toggleControl('add')} className={`p-2 rounded-full transition-colors flex-shrink-0 text-white flex items-center justify-center ${activeControl === 'add' ? 'bg-emerald-600 dark:bg-emerald-700 ring-2 ring-emerald-300 ring-offset-1 ring-offset-background dark:ring-offset-dark-background' : 'bg-emerald-500 dark:bg-emerald-600 hover:bg-emerald-600 dark:hover:bg-emerald-700'}`} aria-label={t(activeControl === 'add' ? 'close_add_item' : 'open_add_item')} aria-expanded={activeControl === 'add'}><PlusIcon className="h-5 w-5" /></button> {activeControl === 'search' && (<div key="search-c" className="flex items-center flex-grow ml-1 min-w-0"><input ref={searchInputRef} type="search" placeholder={t('search_items_placeholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-grow p-2 border rounded bg-white dark:bg-gray-700 text-text dark:text-dark-text border-primary dark:border-dark-primary focus:ring-accent dark:focus:ring-dark-accent min-w-0 h-10" onKeyDown={(e) => e.key === 'Escape' && closeActiveControl()} aria-label={t('search_items_placeholder')} /></div>)} {activeControl === 'add' && (<div key="add-c" className="flex-grow min-w-0 ml-1"><AddItemInlineForm listId={listId} onAddItem={handleAddItemOnline} onCancel={closeActiveControl} isOnline={isOnline} queueItemAction={queueItemAction} /></div>)} {activeControl === 'none' && (<div key="none-c" className="flex-grow min-h-[40px]"></div>)} </div>
              {showEmptyListMessage ? ( <p className="text-gray-500 dark:text-gray-400 italic mt-4 text-center">{t('empty_list_message')}</p> ) : showNoSearchResultsMessage ? ( <p className="text-center text-gray-500 dark:text-gray-400 italic mt-4">{t('no_search_results')}</p> ) : ( <ul ref={listAnimationParent} className="list-none p-0 mb-4"> {filteredAndSortedItems.map(item => ( <ShoppingListItem key={item._id || item.tempId} item={item} listId={listId} onToggle={handleToggleItemOnline} onDelete={handleDeleteItemOnline} onUpdateComment={onUpdateComment} isOnline={isOnline} queueItemAction={queueItemAction} /> ))} </ul> )}
-             {isOwner && ( <div ref={ownerControlsAnimationParent} className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-6"> <div className="flex items-center justify-between flex-wrap gap-2 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md"> <div className="flex items-center gap-2 flex-wrap flex-grow mr-2"> <span className={`material-symbols-rounded ${list.isPublic ? 'text-blue-500' : 'text-yellow-600'}`}>{list.isPublic ? 'public' : 'lock'}</span> <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{list.isPublic ? t('list_privacy_public') : t('list_privacy_private')}</span> <span className="text-xs text-gray-500 dark:text-gray-400">({list.isPublic ? t('list_public_info') : t('list_private_info')})</span> {list.isOffline && ( <span className="material-symbols-rounded text-xs text-amber-500 ml-1 flex-shrink-0" title={t('offline_change_tooltip')}>cloud_off</span> )} </div> <button onClick={() => onTogglePrivacy(listId)} disabled={!isOnline || !!list.tempId} className="px-3 py-1 rounded bg-primary dark:bg-dark-primary text-white text-xs hover:opacity-90 transition-opacity flex items-center gap-1 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"> <span className="material-symbols-rounded text-sm">{list.isPublic ? 'lock' : 'public'}</span> {list.isPublic ? t('make_private') : t('make_public')} </button> </div> </div> )}
+             {isOwner && ( <div ref={ownerControlsAnimationParent} className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-6"> <div className="flex items-center justify-between flex-wrap gap-2 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
+                  {/* ** MODIFIED: Privacy Toggle - Removed offline icon ** */}
+                  <div className="flex items-center gap-2 flex-wrap flex-grow mr-2">
+                     <span className={`material-symbols-rounded ${list.isPublic ? 'text-blue-500' : 'text-yellow-600'}`}>{list.isPublic ? 'public' : 'lock'}</span>
+                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{list.isPublic ? t('list_privacy_public') : t('list_privacy_private')}</span>
+                     <span className="text-xs text-gray-500 dark:text-gray-400">({list.isPublic ? t('list_public_info') : t('list_private_info')})</span>
+                     {/* {list.isOffline && ( <span className="material-symbols-rounded text-xs text-amber-500 ml-1 flex-shrink-0" title={t('offline_change_tooltip')}>cloud_off</span> )} <-- REMOVED */}
+                  </div>
+                  <button onClick={() => onTogglePrivacy(listId)} disabled={!isOnline || !!list.tempId} className="px-3 py-1 rounded bg-primary dark:bg-dark-primary text-white text-xs hover:opacity-90 transition-opacity flex items-center gap-1 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"> <span className="material-symbols-rounded text-sm">{list.isPublic ? 'lock' : 'public'}</span> {list.isPublic ? t('make_private') : t('make_public')} </button>
+             </div> </div> )}
              <ShareListModal isOpen={isShareModalOpen} onClose={handleCloseShareModal} listId={list?._id} listName={list?.name || ''} currentOwnerId={list?.owner?._id} currentAllowedUsers={list?.allowedUsers || []} isListPublic={list?.isPublic || false} onError={onError} />
         </div>
     );

@@ -120,5 +120,6 @@
   "item_comment_placeholder": "Dodaj komentarz...",
   "save_button": "Zapisz",
   "item_comment_collapse": "Zwiń",
-  "item_comment_expand": "Rozwiń"
+  "item_comment_expand": "Rozwiń",
+  "log_viewer_title": "Podgląd Dziennika"
 }
