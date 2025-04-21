@@ -1,3 +1,4 @@
+// client/src/main.jsx
 import React, { Suspense } from 'react'; // Import Suspense
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
@@ -8,7 +9,7 @@ import './i18n'; // Import the i18n configuration
 function LoadingFallback() {
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-      Loading translations...
+      Loading...
     </div>
   );
 }

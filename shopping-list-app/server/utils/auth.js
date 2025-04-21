@@ -2,63 +2,69 @@
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const COOKIE_NAME = 'session_token'; // Name for the cookie
+const COOKIE_NAME = 'session_token';
+// Use a long expiry for the session cookie (e.g., 10 years in seconds)
+// Alternatively, use a shorter expiry (e.g., '1d', '7d') and implement refresh tokens if needed.
+const JWT_EXPIRY = '3650d'; // 10 years
+const COOKIE_MAX_AGE = 3650 * 24 * 60 * 60 * 1000; // 10 years in milliseconds
 
 if (!JWT_SECRET) {
     console.error("FATAL ERROR: JWT_SECRET is not defined in .env file.");
     process.exit(1);
 }
 
-// Function to generate a JWT
-const generateToken = (userId, username, isAdmin = false) => {
+// Generates a JWT token
+const generateToken = (userId, username, isAdmin) => {
+    if (!userId || !username) {
+        throw new Error('User ID and username are required to generate token');
+    }
     const payload = {
         id: userId,
         username: username,
-        isAdmin: isAdmin // Include isAdmin in the token payload
+        isAdmin: !!isAdmin // Ensure boolean
     };
-    // Sign the token - potentially set an expiration? For now, no expiration as requested.
-    return jwt.sign(payload, JWT_SECRET /*, { expiresIn: '7d' } */ ); // No expiration
+    return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
 };
 
-// Function to set the token as an HTTP-only cookie
-const setTokenCookie = (res, token) => {
-    res.cookie(COOKIE_NAME, token, {
-        httpOnly: true, // Cannot be accessed by client-side JavaScript
-        secure: process.env.NODE_ENV === 'production', // Send only over HTTPS in production
-        sameSite: 'lax', // Basic CSRF protection
-        path: '/', // Make cookie available for all paths
-        // expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // Example: 7 days expiration
-        // No 'expires' or 'maxAge' means it's a session cookie (cleared on browser close),
-        // OR persists indefinitely if browser restores session. True non-expiring requires setting a far future date.
-         maxAge: 365 * 24 * 60 * 60 * 1000 * 10 // ~10 years, effectively "no expiration"
-    });
-};
-
-// Function to clear the token cookie
-const clearTokenCookie = (res) => {
-    res.cookie(COOKIE_NAME, '', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        expires: new Date(0) // Set expiry date to the past
-    });
-};
-
-// Function to verify a token (used by middleware)
+// Verifies a JWT token
 const verifyToken = (token) => {
     try {
         return jwt.verify(token, JWT_SECRET);
     } catch (error) {
-        console.error("Token verification failed:", error.message);
-        return null; // Invalid token
+        console.error("Token verification failed:", error.message); // Log specific JWT errors
+        // Don't throw generic error, let caller handle specific JWT errors
+        // like TokenExpiredError or JsonWebTokenError
+        throw error;
     }
+};
+
+// Sets the token as an HttpOnly cookie on the response
+const setTokenCookie = (res, token) => {
+    res.cookie(COOKIE_NAME, token, {
+        httpOnly: true, // Prevent client-side JS access
+        secure: process.env.NODE_ENV === 'production', // Send only over HTTPS in production
+        sameSite: 'Lax', // Recommended for most cases to prevent CSRF
+        path: '/', // Make cookie available for all paths
+        maxAge: COOKIE_MAX_AGE, // Set cookie expiry (in ms)
+        // domain: process.env.COOKIE_DOMAIN // Optional: Use if needed for subdomains
+    });
+};
+
+// Clears the token cookie
+const clearTokenCookie = (res) => {
+    res.cookie(COOKIE_NAME, '', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Lax',
+        path: '/',
+        expires: new Date(0), // Set expiry date to the past
+    });
 };
 
 module.exports = {
     generateToken,
+    verifyToken,
     setTokenCookie,
     clearTokenCookie,
-    verifyToken,
-    COOKIE_NAME
+    COOKIE_NAME,
 };
