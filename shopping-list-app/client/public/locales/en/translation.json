@@ -112,5 +112,13 @@
   "sync_complete": "Sync complete!",
   "sync_failed": "Sync failed. Please try again later.",
   "offline_mode_active": "Offline Mode Active - Changes saved locally.",
-  "offline_change_tooltip": "Modified offline"
+  "offline_change_tooltip": "Modified offline",
+  "confirm_button": "Confirm",
+  "delete_button": "Delete",
+  "item_comment_edit_tooltip": "Edit comment",
+  "item_comment_add_tooltip": "Add comment",
+  "item_comment_placeholder": "Add a comment...",
+  "save_button": "Save",
+  "item_comment_collapse": "Collapse",
+  "item_comment_expand": "Expand"
 }

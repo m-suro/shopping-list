@@ -112,5 +112,13 @@
   "sync_complete": "Synchronizacja ukończona!",
   "sync_failed": "Synchronizacja nie powiodła się. Spróbuj ponownie później.",
   "offline_mode_active": "Tryb Offline Aktywny - Zmiany zapisano lokalnie.",
-  "offline_change_tooltip": "Zmodyfikowano offline"
+  "offline_change_tooltip": "Zmodyfikowano offline",
+  "confirm_button": "Potwierdź",
+  "delete_button": "Usuń",
+  "item_comment_edit_tooltip": "Edytuj komentarz",
+  "item_comment_add_tooltip": "Dodaj komentarz",
+  "item_comment_placeholder": "Dodaj komentarz...",
+  "save_button": "Zapisz",
+  "item_comment_collapse": "Zwiń",
+  "item_comment_expand": "Rozwiń"
 }
