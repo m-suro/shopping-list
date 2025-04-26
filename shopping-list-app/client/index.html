@@ -16,4 +16,37 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
+  <script>
+// Self-healing mechanism for stuck authentication
+(function() {
+  // How long to wait before considering auth stuck (milliseconds)
+  const STUCK_TIMEOUT = 8000;
+  
+  // Time to wait between reload attempts (milliseconds)
+  const RELOAD_BACKOFF = 60000;
+  
+  // Check if we've recently tried this remedy
+  const lastReload = localStorage.getItem('emergency_auth_reload_time');
+  const currentTime = new Date().getTime();
+  
+  // If we haven't tried recently or this is first attempt
+  if (!lastReload || (currentTime - parseInt(lastReload)) > RELOAD_BACKOFF) {
+    setTimeout(() => {
+      // Check if the page shows expected content
+      const appContent = document.querySelector('form, .app-content, .login-form');
+      const isLoading = document.body.textContent.includes('loading') || 
+                         document.body.textContent.includes('Loading');
+      
+      // If still loading after timeout and no app content visible
+      if (isLoading && !appContent) {
+        console.error("Emergency: Authentication appears stuck. Performing emergency reload.");
+        localStorage.setItem('emergency_auth_reload_time', currentTime.toString());
+        
+        // Force page reload
+        window.location.reload();
+      }
+    }, STUCK_TIMEOUT);
+  }
+})();
+</script>
 </html>

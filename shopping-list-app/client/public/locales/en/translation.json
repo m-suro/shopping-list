@@ -121,5 +121,14 @@
   "save_button": "Save",
   "item_comment_collapse": "Collapse",
   "item_comment_expand": "Expand",
-  "log_viewer_title": "Log Viewer"
+  "log_viewer_title": "Log Viewer",
+  "quantity_modal_title": "Set Quantity",
+  "quantity_modal_item_label": "Item",
+  "quantity_modal_value_label": "Quantity",
+  "quantity_modal_value_placeholder": "e.g., 1, 5, 100",
+  "quantity_modal_unit_label": "Unit (Optional)",
+  "quantity_modal_unit_placeholder": "e.g., kg, ml, pcs, loaves",
+  "item_quantity_button_title": "Set quantity",
+  "error_updating_comment": "Error updating comment: {{message}}",
+  "error_updating_quantity": "Error updating quantity: {{message}}"
 }

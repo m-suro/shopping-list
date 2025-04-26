@@ -121,5 +121,14 @@
   "save_button": "Zapisz",
   "item_comment_collapse": "Zwiń",
   "item_comment_expand": "Rozwiń",
-  "log_viewer_title": "Podgląd Dziennika"
+  "log_viewer_title": "Podgląd Dziennika",
+  "quantity_modal_title": "Ustaw Ilość",
+  "quantity_modal_item_label": "Element",
+  "quantity_modal_value_label": "Ilość",
+  "quantity_modal_value_placeholder": "np. 1, 5, 100",
+  "quantity_modal_unit_label": "Jednostka (Opcjonalnie)",
+  "quantity_modal_unit_placeholder": "np. kg, ml, szt., bochenki",
+  "item_quantity_button_title": "Ustaw ilość",
+  "error_updating_comment": "Błąd aktualizacji komentarza: {{message}}", 
+  "error_updating_quantity": "Błąd aktualizacji ilości: {{message}}"
 }

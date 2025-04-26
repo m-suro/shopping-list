@@ -17,18 +17,27 @@ const itemSchema = new mongoose.Schema({
         required: true,
         index: true // Index for faster lookups by listId
     },
-    // --- NEW FIELD ---
     comment: {
         type: String,
-        trim: true, // Automatically trim whitespace
-        maxLength: [500, 'Comment cannot exceed 500 characters'], // Optional: Set a max length
-        default: '' // Default to an empty string
+        trim: true,
+        maxLength: [500, 'Comment cannot exceed 500 characters'],
+        default: ''
+    },
+    // --- NEW QUANTITY FIELDS ---
+    quantityValue: {
+        type: Number,
+        // Optional: Add validation like min value if needed
+        // min: [0, 'Quantity cannot be negative'],
+        default: null // Use null to indicate quantity not set
+    },
+    quantityUnit: {
+        type: String,
+        trim: true,
+        maxLength: [50, 'Quantity unit cannot exceed 50 characters'], // Optional max length
+        default: '' // Default to empty string
     }
-    // --- END NEW FIELD ---
+    // --- END NEW QUANTITY FIELDS ---
 }, { timestamps: true });
-
-// // Optional: Compound index if often querying by listId and completed status
-// itemSchema.index({ listId: 1, completed: 1 });
 
 const Item = mongoose.model('Item', itemSchema);
 

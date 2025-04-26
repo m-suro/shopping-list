@@ -1,88 +1,164 @@
 // client/src/services/offlineService.jsx
-// Description: Provides functions for managing offline data persistence (lists)
-// and pending actions queue using localStorage.
+// Utility module for handling offline data persistence using localStorage.
 
-const LISTS_STORAGE_KEY = 'offlineShoppingLists';
-const PENDING_ACTIONS_KEY = 'offlinePendingActions';
+// --- Constants ---
+const LISTS_STORAGE_KEY = 'shoppingLists';
+const ACTIONS_STORAGE_KEY = 'pendingActions';
 
 // --- List Storage ---
-export const getStoredLists = () => { /* ... (no change) ... */ try { const stored = localStorage.getItem(LISTS_STORAGE_KEY); return stored ? JSON.parse(stored) : []; } catch (error) { console.error("Error getting stored lists:", error); return []; } };
-export const storeLists = (lists) => { /* ... (no change) ... */ try { localStorage.setItem(LISTS_STORAGE_KEY, JSON.stringify(lists || [])); } catch (error) { console.error("Error storing lists:", error); } };
+export const getStoredLists = () => {
+    try {
+        const stored = localStorage.getItem(LISTS_STORAGE_KEY);
+        return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+        console.error("Error getting stored lists:", error);
+        return [];
+    }
+};
+
+export const storeLists = (lists) => {
+    try {
+        localStorage.setItem(LISTS_STORAGE_KEY, JSON.stringify(lists || []));
+    } catch (error) {
+        console.error("Error storing lists:", error);
+    }
+};
 
 // --- Pending Actions Queue ---
-export const getPendingActions = () => { /* ... (no change) ... */ try { const stored = localStorage.getItem(PENDING_ACTIONS_KEY); return stored ? JSON.parse(stored) : []; } catch (error) { console.error("Error getting pending actions:", error); return []; } };
-export const storePendingActions = (actions) => { /* ... (no change) ... */ try { localStorage.setItem(PENDING_ACTIONS_KEY, JSON.stringify(actions || [])); console.log(`Stored ${actions.length} pending actions.`); } catch (error) { console.error("Error storing pending actions:", error); } };
-export const addPendingAction = (action) => { /* ... (no change) ... */ if (!action || !action.type || !action.payload) { console.error("Attempted to add invalid action:", action); return getPendingActions(); } const currentActions = getPendingActions(); const actionToAdd = action.id ? action : { ...action, id: crypto.randomUUID() }; const newActions = [...currentActions, actionToAdd]; storePendingActions(newActions); console.log(`Action added to pending queue (ID: ${actionToAdd.id}, Type: ${actionToAdd.type}). Total: ${newActions.length}`); return newActions; };
-export const clearPendingActions = () => { /* ... (no change) ... */ try { localStorage.removeItem(PENDING_ACTIONS_KEY); console.log("Cleared pending actions from storage."); } catch (error) { console.error("Error clearing pending actions:", error); } };
-
-
-/**
- * Applies a single action optimistically to a local copy of lists/items,
- * adding offline flags to indicate the change hasn't been synced.
- * IMPORTANT: This function MUST return new array/object references for
- * modified lists and items to ensure React detects the state change.
- *
- * @param {Array} currentLists - The current array of lists state.
- * @param {Object} action - The action object { type, payload }.
- * @returns {Array} The new lists array with the action applied locally.
- */
-export const applyActionLocally = (currentLists, action) => {
-    const { type, payload } = action;
-    const safeCurrentLists = Array.isArray(currentLists) ? currentLists : [];
-    let newLists = [...safeCurrentLists]; // Shallow copy
-
-    console.log("Applying local action:", type, payload);
-
+export const getPendingActions = () => {
     try {
-        switch (type) {
-            case 'addList': { /* ... (no change) ... */ const listExists = newLists.some(l => l._id === payload._id || l.tempId === payload.tempId); if (!listExists) { const listToAdd = { ...payload, items: payload.items || [], isOffline: true }; newLists = [...newLists, listToAdd]; } else { console.warn("Attempted to add list locally that already exists:", payload.tempId || payload._id); } break; }
-            case 'deleteList': { /* ... (no change) ... */ const listIdToDelete = payload.listId; const initialLength = newLists.length; newLists = newLists.filter(list => list._id !== listIdToDelete && list.tempId !== listIdToDelete); if (newLists.length === initialLength) { console.warn("Attempted to delete list locally that wasn't found:", listIdToDelete); } break; }
-            case 'toggleListPrivacy': { /* ... (no change) ... */ const listIdToToggle = payload.listId; let listFound = false; newLists = newLists.map(list => { if (list._id === listIdToToggle || list.tempId === listIdToToggle) { listFound = true; return { ...list, isPublic: payload.isPublic, isOffline: true }; } return list; }); if (!listFound) { console.warn("Attempted to toggle privacy for list locally that wasn't found:", listIdToToggle); } break; }
-            case 'addItem': { /* ... (no change) ... */ const targetListId = payload.listId; let listFoundAndUpdated = false; newLists = newLists.map(list => { if (list._id === targetListId || list.tempId === targetListId) { const currentItems = Array.isArray(list.items) ? [...list.items] : []; const newItemWithFlag = { ...payload.item, isOffline: true }; const itemExists = currentItems.some(i => i._id === newItemWithFlag._id || i.tempId === newItemWithFlag.tempId); if (!itemExists) { currentItems.push(newItemWithFlag); listFoundAndUpdated = true; return { ...list, items: currentItems, isOffline: true }; } else { console.warn("Attempted to add item locally that already exists:", newItemWithFlag.tempId || newItemWithFlag._id); return list; } } return list; }); if (!listFoundAndUpdated) { console.warn("Attempted to add item to list locally that wasn't found:", targetListId); } break; }
-            case 'toggleItem': { /* ... (no change) ... */ const { listId, itemId } = payload; let listFoundAndUpdated = false; newLists = newLists.map(list => { if (list._id === listId || list.tempId === listId) { if (Array.isArray(list.items)) { let itemUpdated = false; const updatedItems = list.items.map(item => { if (item._id === itemId || item.tempId === itemId) { itemUpdated = true; return { ...item, completed: !item.completed, isOffline: true }; } return item; }); if (itemUpdated) { listFoundAndUpdated = true; return { ...list, items: updatedItems, isOffline: true }; } } } return list; }); if (!listFoundAndUpdated) { console.warn(`Attempted to toggle item ${itemId} in list ${listId} locally, but list or item not found.`); } break; }
-            case 'deleteItem': { /* ... (no change) ... */ const { listId, itemId } = payload; let listFoundAndUpdated = false; newLists = newLists.map(list => { if (list._id === listId || list.tempId === listId) { if (Array.isArray(list.items)) { const initialLength = list.items.length; const updatedItems = list.items.filter(item => item._id !== itemId && item.tempId !== itemId); if (updatedItems.length < initialLength) { listFoundAndUpdated = true; return { ...list, items: updatedItems, isOffline: true }; } } } return list; }); if (!listFoundAndUpdated) { console.warn(`Attempted to delete item ${itemId} from list ${listId} locally, but list or item not found.`); } break; }
-
-            // --- NEW CASE for Comments ---
-            case 'updateItemComment': {
-                const { listId, itemId, comment } = payload;
-                let listFoundAndUpdated = false;
-                 newLists = newLists.map(list => {
-                    // Find the correct list
-                    if (list._id === listId || list.tempId === listId) {
-                        if (Array.isArray(list.items)) {
-                            let itemUpdated = false;
-                             // Create a new items array with the updated comment
-                             const updatedItems = list.items.map(item => {
-                                 if (item._id === itemId || item.tempId === itemId) {
-                                     itemUpdated = true;
-                                     // Return a new item object with the updated comment and offline flag
-                                     return { ...item, comment: comment, isOffline: true };
-                                 }
-                                 return item; // Return unmodified item
-                             });
-                             // If an item was actually updated, return a new list object
-                             if (itemUpdated) {
-                                 listFoundAndUpdated = true;
-                                 return { ...list, items: updatedItems, isOffline: true }; // Mark list as offline too
-                             }
-                         }
-                    }
-                    return list; // Return unmodified list
-                 });
-                 if (!listFoundAndUpdated) {
-                     console.warn(`Attempted to update comment for item ${itemId} in list ${listId} locally, but list or item not found.`);
-                 }
-                 break;
-            }
-            // --- END NEW CASE ---
-
-            default:
-                console.warn("Unknown local action type:", type);
-        }
+        const stored = localStorage.getItem(ACTIONS_STORAGE_KEY);
+        return stored ? JSON.parse(stored) : [];
     } catch (error) {
-        console.error("Error applying local action:", type, error);
-        return safeCurrentLists; // Return original state on error
+        console.error("Error getting pending actions:", error);
+        return [];
+    }
+};
+
+export const storePendingActions = (actions) => {
+    try {
+        localStorage.setItem(ACTIONS_STORAGE_KEY, JSON.stringify(actions || []));
+    } catch (error) {
+        console.error("Error storing pending actions:", error);
+    }
+};
+
+export const addPendingAction = (action) => {
+    const currentActions = getPendingActions();
+    const newActions = [...currentActions, action];
+    storePendingActions(newActions);
+    return newActions; // Return updated queue
+};
+
+export const clearPendingActions = () => {
+    storePendingActions([]);
+};
+
+
+// --- Apply Action Locally (Optimistic Update) ---
+// ** MODIFIED: Added case for 'updateItemQuantity' **
+export const applyActionLocally = (currentLists, action) => {
+    console.log(`Applying action locally: ${action.type}`, action.payload);
+    let updatedLists = [...(currentLists || [])]; // Ensure it's an array
+
+    const findListIndex = (listId) => updatedLists.findIndex(l => l._id === listId || l.tempId === listId);
+    const findItemIndex = (list, itemId) => (list?.items || []).findIndex(i => i._id === itemId || i.tempId === itemId);
+
+    switch (action.type) {
+        case 'addList': {
+            const optimisticList = { ...action.payload, isOffline: true };
+            // Avoid duplicates if already added somehow
+            if (!updatedLists.some(l => l._id === optimisticList._id || l.tempId === optimisticList.tempId)) {
+                updatedLists.push(optimisticList);
+            }
+            break;
+        }
+        case 'deleteList': {
+            updatedLists = updatedLists.filter(l => l._id !== action.payload.listId && l.tempId !== action.payload.listId);
+            break;
+        }
+         case 'toggleListPrivacy': {
+             const listIdx = findListIndex(action.payload.listId);
+             if (listIdx > -1) {
+                 updatedLists[listIdx] = { ...updatedLists[listIdx], isPublic: action.payload.isPublic, isOffline: true };
+             }
+             break;
+         }
+        case 'addItem': {
+            const listIdx = findListIndex(action.payload.listId);
+            if (listIdx > -1) {
+                const list = updatedLists[listIdx];
+                const newItem = { ...action.payload.item, isOffline: true };
+                // Ensure items array exists and avoid duplicates
+                const items = Array.isArray(list.items) ? list.items : [];
+                if (!items.some(i => i._id === newItem._id || i.tempId === newItem.tempId)) {
+                     updatedLists[listIdx] = { ...list, items: [...items, newItem], isOffline: true };
+                }
+            }
+            break;
+        }
+        case 'deleteItem': {
+            const listIdx = findListIndex(action.payload.listId);
+            if (listIdx > -1) {
+                const list = updatedLists[listIdx];
+                const items = (list.items || []).filter(i => i._id !== action.payload.itemId && i.tempId !== action.payload.itemId);
+                updatedLists[listIdx] = { ...list, items: items, isOffline: true };
+            }
+            break;
+        }
+        case 'toggleItem': {
+            const listIdx = findListIndex(action.payload.listId);
+            if (listIdx > -1) {
+                const list = updatedLists[listIdx];
+                const itemIdx = findItemIndex(list, action.payload.itemId);
+                if (itemIdx > -1) {
+                    const updatedItem = { ...list.items[itemIdx], completed: !list.items[itemIdx].completed, isOffline: true };
+                    const updatedItems = [...list.items];
+                    updatedItems[itemIdx] = updatedItem;
+                    updatedLists[listIdx] = { ...list, items: updatedItems, isOffline: true };
+                }
+            }
+            break;
+        }
+        case 'updateItemComment': {
+             const listIdx = findListIndex(action.payload.listId);
+             if (listIdx > -1) {
+                 const list = updatedLists[listIdx];
+                 const itemIdx = findItemIndex(list, action.payload.itemId);
+                 if (itemIdx > -1) {
+                     const updatedItem = { ...list.items[itemIdx], comment: action.payload.comment, isOffline: true };
+                     const updatedItems = [...list.items];
+                     updatedItems[itemIdx] = updatedItem;
+                     updatedLists[listIdx] = { ...list, items: updatedItems, isOffline: true };
+                 }
+             }
+             break;
+         }
+         // --- NEW CASE ---
+         case 'updateItemQuantity': {
+            const listIdx = findListIndex(action.payload.listId);
+            if (listIdx > -1) {
+                const list = updatedLists[listIdx];
+                const itemIdx = findItemIndex(list, action.payload.itemId);
+                if (itemIdx > -1) {
+                    const updatedItem = {
+                        ...list.items[itemIdx],
+                        quantityValue: action.payload.quantityValue, // Update value
+                        quantityUnit: action.payload.quantityUnit,   // Update unit
+                        isOffline: true
+                    };
+                    const updatedItems = [...list.items];
+                    updatedItems[itemIdx] = updatedItem;
+                    updatedLists[listIdx] = { ...list, items: updatedItems, isOffline: true };
+                }
+            }
+            break;
+         }
+         // --- END NEW CASE ---
+        default:
+            console.warn(`Unknown action type for local application: ${action.type}`);
     }
 
-    return newLists; // Return the new state array
+    storeLists(updatedLists); // Store the optimistically updated state
+    return updatedLists;
 };
